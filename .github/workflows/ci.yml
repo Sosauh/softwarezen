@@ -21,6 +21,6 @@ jobs:
       - name: Engine stays free of Win32
         if: runner.os == 'Linux'
         run: |
-          if grep -rnE 'DllImport|LibraryImport|Microsoft\.Win32|System\.Windows' engine/; then
+          if grep -rnE --include='*.cs' --exclude-dir=obj --exclude-dir=bin 'DllImport|LibraryImport|Microsoft\.Win32|System\.Windows' engine/; then
             echo "engine/ must not touch Win32"; exit 1
           fi

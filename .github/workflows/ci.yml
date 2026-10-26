@@ -1,0 +1,26 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - run: dotnet build -c Release
+      - run: dotnet test -c Release --no-build
+      - name: Engine stays free of Win32
+        if: runner.os == 'Linux'
+        run: |
+          if grep -rnE 'DllImport|LibraryImport|Microsoft\.Win32|System\.Windows' engine/; then
+            echo "engine/ must not touch Win32"; exit 1
+          fi

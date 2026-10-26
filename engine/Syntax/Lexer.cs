@@ -66,7 +66,6 @@ public sealed class Lexer
         if (char.IsDigit(c) || (c == '.' && char.IsDigit(Peek(1))))
             return Number(start, line, col);
         if (c == '"') return StringLit(start, line, col);
-        if (c == '\'') return CharLit(start, line, col);
 
         _pos++;
         TokenKind k = c switch
@@ -75,13 +74,13 @@ public sealed class Lexer
             '[' => TokenKind.LBracket, ']' => TokenKind.RBracket, ',' => TokenKind.Comma, ';' => TokenKind.Semicolon,
             ':' => TokenKind.Colon, '?' => TokenKind.Question, '.' => TokenKind.Dot, '~' => TokenKind.Tilde,
             '+' => Match('+') ? TokenKind.PlusPlus : Match('=') ? TokenKind.PlusAssign : TokenKind.Plus,
-            '-' => Match('-') ? TokenKind.MinusMinus : Match('=') ? TokenKind.MinusAssign : TokenKind.Minus,
+            '-' => Match('-') ? TokenKind.MinusMinus : Match('=') ? TokenKind.MinusAssign : Match('>') ? TokenKind.Arrow : TokenKind.Minus,
             '*' => Match('=') ? TokenKind.StarAssign : TokenKind.Star,
             '/' => Match('=') ? TokenKind.SlashAssign : TokenKind.Slash,
             '%' => Match('=') ? TokenKind.PercentAssign : TokenKind.Percent,
-            '^' => Match('=') ? TokenKind.CaretAssign : TokenKind.Caret,
-            '&' => Match('&') ? TokenKind.AmpAmp : Match('=') ? TokenKind.AmpAssign : TokenKind.Amp,
-            '|' => Match('|') ? TokenKind.PipePipe : Match('=') ? TokenKind.PipeAssign : TokenKind.Pipe,
+            '^' => Match('^') ? (Match('=') ? TokenKind.CaretCaretAssign : TokenKind.CaretCaret) : Match('=') ? TokenKind.CaretAssign : TokenKind.Caret,
+            '&' => Match('&') ? (Match('=') ? TokenKind.AmpAmpAssign : TokenKind.AmpAmp) : Match('=') ? TokenKind.AmpAssign : TokenKind.Amp,
+            '|' => Match('|') ? (Match('=') ? TokenKind.PipePipeAssign : TokenKind.PipePipe) : Match('=') ? TokenKind.PipeAssign : TokenKind.Pipe,
             '!' => Match('=') ? TokenKind.NotEq : TokenKind.Bang,
             '=' => Match('=') ? TokenKind.EqEq : TokenKind.Assign,
             '<' => Match('<') ? (Match('=') ? TokenKind.ShlAssign : TokenKind.Shl) : Match('=') ? TokenKind.Le : TokenKind.Lt,
@@ -90,7 +89,8 @@ public sealed class Lexer
         };
         if (k == TokenKind.End)
         {
-            _diag.Error("GZ1002", $"unexpected character '{c}'", SpanFrom(start, line, col));
+            // the Zen compiler skips stray characters with a warning
+            _diag.Warning("GZ1002", $"stray character '{c}' ignored", SpanFrom(start, line, col));
             return Next();
         }
         return new(k, _src[start.._pos], 0, SpanFrom(start, line, col));
@@ -127,24 +127,39 @@ public sealed class Lexer
         }
 
         while (char.IsDigit(Peek())) _pos++;
-        bool isFixed = false;
+        bool isFraction = false;
         if (Peek() == '.' && char.IsDigit(Peek(1)))
         {
-            isFixed = true;
+            isFraction = true;
             _pos++;
+            while (char.IsDigit(Peek())) _pos++;
+        }
+        if (Peek() is 'e' or 'E')
+        {
+            isFraction = true;
+            _pos++;
+            if (Peek() is '+' or '-') _pos++;
+            if (!char.IsDigit(Peek()))
+                _diag.Error("GZ1007", "exponent has no digits", SpanFrom(start, line, col));
             while (char.IsDigit(Peek())) _pos++;
         }
         string text = _src[start.._pos];
         var sp = SpanFrom(start, line, col);
-        if (isFixed)
-            return new(TokenKind.Fixed, text, FixedPoint.Parse(text), sp);
-
-        if (!ulong.TryParse(text, out ulong value) || value > uint.MaxValue)
+        if (isFraction)
         {
-            _diag.Error("GZ1004", $"integer literal '{text}' does not fit in 32 bits", sp);
+            // GPC has no float type: the scanner rounds to an integer and warns
+            double d = double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var parsed) ? parsed : 0;
+            double r = Math.Round(d, MidpointRounding.AwayFromZero);
+            _diag.Warning("GZ1008", $"decimal literal '{text}' rounded to {r}", sp);
+            return new(TokenKind.Integer, text, unchecked((int)(long)Math.Clamp(r, long.MinValue, long.MaxValue)), sp);
+        }
+
+        if (!long.TryParse(text, out long value) || value > int.MaxValue)
+        {
+            _diag.Error("GZ1004", $"decimal literal '{text}' exceeds 2147483647", sp);
             value = 0;
         }
-        return new(TokenKind.Integer, text, unchecked((int)(uint)value), sp);
+        return new(TokenKind.Integer, text, (int)value, sp);
     }
 
     Token StringLit(int start, int line, int col)
@@ -158,21 +173,30 @@ public sealed class Lexer
         return new(TokenKind.String, sb.ToString(), 0, SpanFrom(start, line, col));
     }
 
-    Token CharLit(int start, int line, int col)
-    {
-        _pos++;
-        int v = 0;
-        if (Peek() != '\'' && Peek() != '\n') v = ReadCharInLiteral();
-        if (Peek() != '\'') _diag.Error("GZ1006", "unterminated character literal", SpanFrom(start, line, col));
-        else _pos++;
-        return new(TokenKind.Char, _src[start.._pos], v, SpanFrom(start, line, col));
-    }
-
     char ReadCharInLiteral()
     {
         char c = _src[_pos++];
         if (c != '\\' || _pos >= _src.Length) return c;
         char e = _src[_pos++];
-        return e switch { 'n' => '\n', 't' => '\t', 'r' => '\r', '0' => '\0', _ => e };
+        switch (e)
+        {
+            case 'n': return '\n';
+            case 't': return '\t';
+            case 'r': return '\r';
+            case '0': return '\0';
+            case '\\': case '"': case '\'': return e;
+            case 'x':
+                if (_pos + 1 < _src.Length && Uri.IsHexDigit(_src[_pos]) && Uri.IsHexDigit(_src[_pos + 1]))
+                {
+                    char v = (char)Convert.ToInt32(_src.Substring(_pos, 2), 16);
+                    _pos += 2;
+                    return v;
+                }
+                _diag.Error("GZ1009", "\\x needs exactly two hex digits", new(_pos - 2, 2, _line, _pos - _lineStart - 1));
+                return 'x';
+            default:
+                _diag.Error("GZ1010", $"unknown escape '\\{e}'", new(_pos - 2, 2, _line, _pos - _lineStart - 1));
+                return e;
+        }
     }
 }

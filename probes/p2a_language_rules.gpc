@@ -1,0 +1,49 @@
+// Probe 2a: evaluation rules.
+//   TRACE_1  b = a++ with a = 5    (current compiler per guide: 5; original compiler: 6)
+//   TRACE_2  c = ++a after that    (7)
+//   TRACE_3  calls made by  0 && bump()   (short-circuit gives 0)
+//   TRACE_4  calls made by  1 || bump()   (short-circuit gives 0)
+//   TRACE_5  pair(next(), next())         (left-to-right gives 12; right-to-left gives 21)
+//   TRACE_6  calls made by  0 ? bump() : 0 (guide says 0)
+
+int a, b, c, calls, counter, t3, t4, dummy;
+
+init {
+    a = 5;
+    b = a++;
+    c = ++a;
+
+    calls = 0;
+    if (0 && bump()) dummy = 1;
+    t3 = calls;
+
+    calls = 0;
+    if (1 || bump()) dummy = 1;
+    t4 = calls;
+}
+
+main {
+    set_val(TRACE_1, b);
+    set_val(TRACE_2, c);
+    set_val(TRACE_3, t3);
+    set_val(TRACE_4, t4);
+    counter = 0;
+    set_val(TRACE_5, pair(next(), next()));
+    calls = 0;
+    dummy = 0 ? bump() : 0;
+    set_val(TRACE_6, calls);
+}
+
+function bump() {
+    calls = calls + 1;
+    return 1;
+}
+
+function next() {
+    counter = counter + 1;
+    return counter;
+}
+
+function pair(first, second) {
+    return first * 10 + second;
+}

@@ -1,0 +1,24 @@
+// Probe 1a: division and modulo edge cases.
+// Run on the Zen with no buttons pressed; read TRACE_1..6 in Zen Studio's Device Monitor.
+//   TRACE_1   7 / 0      (guide: undocumented)
+//   TRACE_2   7 % 0      (guide: undocumented)
+//   TRACE_3  -7 / 2      (C truncation gives -3; floor gives -4)
+//   TRACE_4  -7 % 2      (C gives -1; floored modulo gives 1)
+//   TRACE_5   7 / -2     (C truncation gives -3)
+//   TRACE_6   7 % -2     (C gives 1)
+// Operands are variables so the compiler cannot fold them.
+
+int seven, zero, two, neg_seven, neg_two;
+
+init {
+    seven = 7; zero = 0; two = 2; neg_seven = -7; neg_two = -2;
+}
+
+main {
+    set_val(TRACE_1, seven / zero);
+    set_val(TRACE_2, seven % zero);
+    set_val(TRACE_3, neg_seven / two);
+    set_val(TRACE_4, neg_seven % two);
+    set_val(TRACE_5, seven / neg_two);
+    set_val(TRACE_6, seven % neg_two);
+}

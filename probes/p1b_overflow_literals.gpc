@@ -1,0 +1,23 @@
+// Probe 1b: 32-bit overflow and decimal literal rounding.
+//   TRACE_1  INT32_MAX + 1   (wrap gives -2147483648)
+//   TRACE_2  abs(INT32_MIN)  (guide: undefined)
+//   TRACE_3  INT32_MIN / -1  (guide: undocumented; C traps)
+//   TRACE_4  2.5             (half-up gives 3, half-even gives 2)
+//   TRACE_5  1.5             (half-up gives 2, half-even gives 2)
+//   TRACE_6  0.5             (half-up gives 1, half-even gives 0)
+// TRACE_4..6 are 16-bit on the Zen, so only small values go there.
+
+int big, small, neg_one;
+
+init {
+    big = INT32_MAX; small = INT32_MIN; neg_one = -1;
+}
+
+main {
+    set_val(TRACE_1, big + 1);
+    set_val(TRACE_2, abs(small));
+    set_val(TRACE_3, small / neg_one);
+    set_val(TRACE_4, 2.5);
+    set_val(TRACE_5, 1.5);
+    set_val(TRACE_6, 0.5);
+}

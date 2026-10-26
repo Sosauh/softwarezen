@@ -1,4 +1,8 @@
 using System.Diagnostics;
+using Gpc.Engine;
+using Gpc.Engine.Compile;
+using Gpc.Engine.Vm;
+using Gpc.HostWin;
 using Gpc.HostWin.Ds4;
 using Gpc.HostWin.Ds5;
 using Gpc.HostWin.Timing;
@@ -8,6 +12,9 @@ return args.Length == 0 ? Usage() : args[0] switch
     "monitor" => Monitor(),
     "drift" => Drift(args.Length > 1 && int.TryParse(args[1], out int s) ? s : 10),
     "passthrough" => Passthrough(),
+    "check" when args.Length > 1 => Check(args[1]),
+    "sim" when args.Length > 1 => Sim(args[1], args.Length > 2 && int.TryParse(args[2], out int n) ? n : 100),
+    "run" when args.Length > 1 => RunScript(args[1]),
     _ => Usage(),
 };
 
@@ -17,6 +24,9 @@ static int Usage()
         gpcrun monitor          live DS5 values in GPC units; Ctrl+C to quit
         gpcrun drift [seconds]  leave the controller untouched; measures stick drift and suggests a deadzone (default 10 s)
         gpcrun passthrough      DS5 -> virtual DS4 with no script (needs ViGEmBus); prints timing stats on exit
+        gpcrun check <file.gpc> compile only and print diagnostics (works anywhere)
+        gpcrun sim <file.gpc> [cycles]   run with a neutral controller and print TRACE_1..6 (works anywhere)
+        gpcrun run <file.gpc>   DS5 -> script -> virtual DS4 (needs ViGEmBus; HidHide recommended)
         """);
     return 2;
 }
@@ -111,5 +121,83 @@ static int Passthrough()
         return 10_000;
     });
     Console.WriteLine(sched.Stats);
+    return 0;
+}
+
+static CompiledScript? Load(string path)
+{
+    if (!File.Exists(path)) { Console.Error.WriteLine($"no such file: {path}"); return null; }
+    var result = GpcCompiler.Compile(File.ReadAllText(path));
+    foreach (var d in result.Diagnostics) Console.Error.WriteLine($"{Path.GetFileName(path)}:{d}");
+    if (!result.Success) Console.Error.WriteLine($"{result.Errors.Count()} error(s)");
+    return result.Script;
+}
+
+static int Check(string path)
+{
+    var s = Load(path);
+    if (s == null) return 1;
+    Console.WriteLine($"ok: {s.Code.Length} code words, {s.GlobalInit.Length} variable slots, {s.ComboNames.Length} combos");
+    return 0;
+}
+
+static int Sim(string path, int cycles)
+{
+    var s = Load(path);
+    if (s == null) return 1;
+    var m = new Machine(s);
+    int[] last = new int[6];
+    for (int i = 0; i < cycles; i++)
+    {
+        m.RunCycle();
+        bool changed = false;
+        for (int t = 0; t < 6; t++) changed |= m.Trace(t + 1) != last[t];
+        if (i == 0 || changed || i == cycles - 1)
+        {
+            for (int t = 0; t < 6; t++) last[t] = m.Trace(t + 1);
+            Console.WriteLine($"cycle {i,5}: TRACE_1..6 = {string.Join(", ", last)}");
+        }
+    }
+    if (m.FaultCount > 0) Console.WriteLine($"faults: {m.FaultCount} (last: {m.LastFault})");
+    return 0;
+}
+
+static int RunScript(string path)
+{
+    var script = Load(path);
+    if (script == null) return 1;
+    var m = new Machine(script);
+    using var dev = OpenDs5();
+    using var sink = new VigemDs4Sink();
+    sink.Connect();
+    var feedbackGate = new object();
+    Ds4Feedback feedback = default;
+    sink.Feedback += f => { lock (feedbackGate) feedback = f; };
+    var sched = new DeadlineScheduler();
+    Console.CancelKeyPress += (_, e) => { e.Cancel = true; sched.Stop(); };
+    Console.WriteLine($"Running {Path.GetFileName(path)}. Ctrl+C to stop.");
+
+    byte lastLarge = 0, lastSmall = 0, lastR = 0, lastG = 0, lastB = 0;
+    sched.Run(_ =>
+    {
+        var s = dev.Latest;
+        EngineBridge.WriteInput(s, m.Input);
+        Ds4Feedback f;
+        lock (feedbackGate) f = feedback;
+        EngineBridge.WriteFeedback(m, f);
+        int next = m.RunCycle();
+        sink.Submit(EngineBridge.ReadOutput(m.Output));
+
+        byte large = (byte)(m.RumbleOut(0) * 255 / 100), small = (byte)(m.RumbleOut(1) * 255 / 100);
+        byte r = (byte)m.LightbarOut(0), g = (byte)m.LightbarOut(1), b = (byte)m.LightbarOut(2);
+        if (large != lastLarge || small != lastSmall || r != lastR || g != lastG || b != lastB)
+        {
+            dev.SendFeedback(large, small, r, g, b);
+            (lastLarge, lastSmall, lastR, lastG, lastB) = (large, small, r, g, b);
+        }
+        return next * 1000L;
+    });
+    Console.WriteLine(sched.Stats);
+    if (m.FaultCount > 0) Console.WriteLine($"script faults: {m.FaultCount} (last: {m.LastFault})");
     return 0;
 }

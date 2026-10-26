@@ -1,0 +1,30 @@
+// Probe 2b: variables are one flat array of slots.
+//   TRACE_1  arr[2] = 77 through a constant index past arr[1]  (guide: writes 'after', so 77)
+//   TRACE_2  arr[i] = 88 with i = 3 at runtime                   (writes 'later', so 88)
+//   TRACE_3  zero-size alias[0] = 50                             (guide: writes 'aliased', so 50)
+//   TRACE_4  first[1] = 25                                       (guide: writes 'second', so 25)
+// If this fails to compile, note the error code: it means constant indexes are checked.
+
+int arr[2];
+int after;
+int later;
+int alias[0];
+int aliased;
+int first;
+int second;
+int i;
+
+init {
+    arr[2] = 77;
+    i = 3;
+    arr[i] = 88;
+    alias[0] = 50;
+    first[1] = 25;
+}
+
+main {
+    set_val(TRACE_1, after);
+    set_val(TRACE_2, later);
+    set_val(TRACE_3, aliased);
+    set_val(TRACE_4, second);
+}

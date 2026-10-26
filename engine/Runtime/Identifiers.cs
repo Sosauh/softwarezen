@@ -1,0 +1,98 @@
+namespace Gpc.Engine.Runtime;
+
+/// <summary>
+/// Controller slot indexes and built-in constants.
+/// The guide does not publish platform identifier numbers. The 0..29 layout below matches the one
+/// table it does publish (the Driving Force wheel: PS 0, R2 4, TRIANGLE 17, CROSS 19 ...) and the
+/// classic GPC report layout; everything marked UNVERIFIED must be confirmed on a Zen.
+/// </summary>
+public static class Identifiers
+{
+    public const int SlotCount = 64;
+
+    public const int PS = 0, SHARE = 1, OPTIONS = 2, R1 = 3, R2 = 4, R3 = 5, L1 = 6, L2 = 7, L3 = 8;
+    public const int RX = 9, RY = 10, LX = 11, LY = 12, UP = 13, DOWN = 14, LEFT = 15, RIGHT = 16;
+    public const int TRIANGLE = 17, CIRCLE = 18, CROSS = 19, SQUARE = 20;
+    public const int ACCX = 21, ACCY = 22, ACCZ = 23, GYROX = 24, GYROY = 25, GYROZ = 26;
+    public const int TOUCH = 27, TOUCHX = 28, TOUCHY = 29;
+    public const int TRACE_1 = 30; // UNVERIFIED: TRACE_1..TRACE_6 = 30..35
+    public const int TraceCount = 6;
+
+    public const int RUMBLE_A = 0, RUMBLE_B = 1, RUMBLE_RT = 2, RUMBLE_LT = 3; // UNVERIFIED
+    public const int RumbleCount = 4;
+
+    /// <summary>Buttons are 0/100 and triggers 0..100; these slots are signed axes.</summary>
+    public static bool IsAxis(int slot) => slot is RX or RY or LX or LY or (>= ACCX and <= GYROZ) or TOUCHX or TOUCHY;
+
+    public static readonly IReadOnlyDictionary<string, int> Constants = Build();
+
+    static Dictionary<string, int> Build()
+    {
+        var d = new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["TRUE"] = 1, ["FALSE"] = 0,
+            ["INT32_MIN"] = int.MinValue, ["INT32_MAX"] = int.MaxValue,
+            ["INT16_MIN"] = short.MinValue, ["INT16_MAX"] = short.MaxValue,
+            ["INT8_MIN"] = sbyte.MinValue, ["INT8_MAX"] = sbyte.MaxValue,
+            ["UINT8_MAX"] = byte.MaxValue, ["UINT16_MAX"] = ushort.MaxValue,
+            // published (polar and extended analog selectors page)
+            ["POLAR_RADIUS"] = 0, ["POLAR_ANGLE"] = 1, ["POLAR_RS"] = 2, ["POLAR_LS"] = 4, ["POLAR_GHOST"] = 6,
+            ["POLAR_RX"] = 44, ["POLAR_RY"] = 45, ["POLAR_LX"] = 46, ["POLAR_LY"] = 47,
+            ["ANALOG_RX"] = 54, ["ANALOG_RY"] = 55, ["ANALOG_LX"] = 56, ["ANALOG_LY"] = 57,
+            ["ANALOG_GHOSTX"] = 58, ["ANALOG_GHOSTY"] = 59,
+            ["OLED_BLACK"] = 0, ["OLED_WHITE"] = 1,
+            ["OLED_FONT_SMALL"] = 0, ["OLED_FONT_MEDIUM"] = 1, ["OLED_FONT_LARGE"] = 2,
+            // UNVERIFIED values below
+            ["BUTTON_MIN"] = 0, ["BUTTON_MAX"] = TRACE_1 + TraceCount - 1, ["BUTTON_MAX_EXTENDED"] = SlotCount - 1,
+            ["VALUE_MIN"] = -100, ["VALUE_MAX"] = 100,
+            ["TIME_MAX"] = 32767,
+            ["NOT_USE"] = 101, ["DZ_CIRCLE"] = 101,
+            ["REMAP_NULL"] = -1,
+            ["RUMBLE_A"] = RUMBLE_A, ["RUMBLE_B"] = RUMBLE_B, ["RUMBLE_RT"] = RUMBLE_RT, ["RUMBLE_LT"] = RUMBLE_LT,
+            ["RUMBLE_MIN"] = 0, ["RUMBLE_MAX"] = RumbleCount - 1,
+            ["PS4_RED"] = 0, ["PS4_GREEN"] = 1, ["PS4_BLUE"] = 2,
+            ["LED_1"] = 0, ["LED_2"] = 1, ["LED_3"] = 2, ["LED_4"] = 3,
+            ["LED_ID_MIN"] = 0, ["LED_ID_MAX"] = 3, ["LED_MIN"] = 0, ["LED_MAX"] = 3,
+            ["LEDX_MIN"] = 0, ["LEDX_MAX"] = 255,
+            ["PIO_NONE"] = 0, ["PIO_PS3"] = 1, ["PIO_XB360"] = 2, ["PIO_WII"] = 3, ["PIO_PS4"] = 4,
+            ["PIO_XB1"] = 5, ["PIO_SWITCH"] = 6, ["PIO_PS5"] = 7, ["PIO_XBSX"] = 8,
+            ["PS4T_P1"] = 0, ["PS4T_P1X"] = 1, ["PS4T_P1Y"] = 2, ["PS4T_P2"] = 3, ["PS4T_P2X"] = 4, ["PS4T_P2Y"] = 5,
+        };
+
+        for (int i = 1; i <= 32; i++) d[$"BITMASK_{i}"] = unchecked(1 << (i - 1));
+        for (int i = 1; i <= 64; i++) d[$"SPVAR_{i}"] = i; // UNVERIFIED
+        for (int i = 0; i < TraceCount; i++) d[$"TRACE_{i + 1}"] = TRACE_1 + i;
+
+        void Platform(string p, params (string name, int slot)[] specific)
+        {
+            foreach (var (name, slot) in specific) d[p + name] = slot;
+            d[p + "RX"] = RX; d[p + "RY"] = RY; d[p + "LX"] = LX; d[p + "LY"] = LY;
+            d[p + "UP"] = UP; d[p + "DOWN"] = DOWN; d[p + "LEFT"] = LEFT; d[p + "RIGHT"] = RIGHT;
+        }
+
+        var sony = new (string, int)[]
+        {
+            ("PS", PS), ("OPTIONS", OPTIONS), ("R1", R1), ("R2", R2), ("R3", R3), ("L1", L1), ("L2", L2), ("L3", L3),
+            ("TRIANGLE", TRIANGLE), ("CIRCLE", CIRCLE), ("CROSS", CROSS), ("SQUARE", SQUARE),
+            ("ACCX", ACCX), ("ACCY", ACCY), ("ACCZ", ACCZ), ("GYROX", GYROX), ("GYROY", GYROY), ("GYROZ", GYROZ),
+            ("TOUCH", TOUCH), ("TOUCHX", TOUCHX), ("TOUCHY", TOUCHY),
+        };
+        Platform("PS4_", sony.Append(("SHARE", SHARE)).ToArray());
+        Platform("PS5_", sony.Append(("CREATE", SHARE)).Append(("SHARE", SHARE)).ToArray());
+        Platform("PS3_", ("PS", PS), ("SELECT", SHARE), ("START", OPTIONS), ("R1", R1), ("R2", R2), ("R3", R3),
+            ("L1", L1), ("L2", L2), ("L3", L3), ("TRIANGLE", TRIANGLE), ("CIRCLE", CIRCLE), ("CROSS", CROSS), ("SQUARE", SQUARE),
+            ("ACCX", ACCX), ("ACCY", ACCY), ("ACCZ", ACCZ), ("GYRO", GYROX));
+        Platform("XB1_", ("XBOX", PS), ("VIEW", SHARE), ("MENU", OPTIONS), ("RB", R1), ("RT", R2), ("RS", R3),
+            ("LB", L1), ("LT", L2), ("LS", L3), ("Y", TRIANGLE), ("B", CIRCLE), ("A", CROSS), ("X", SQUARE));
+        Platform("XB360_", ("XBOX", PS), ("BACK", SHARE), ("START", OPTIONS), ("RB", R1), ("RT", R2), ("RS", R3),
+            ("LB", L1), ("LT", L2), ("LS", L3), ("Y", TRIANGLE), ("B", CIRCLE), ("A", CROSS), ("X", SQUARE));
+        Platform("SWI_", ("HOME", PS), ("MINUS", SHARE), ("PLUS", OPTIONS), ("R", R1), ("ZR", R2), ("RS", R3),
+            ("L", L1), ("ZL", L2), ("LS", L3), ("X", TRIANGLE), ("A", CIRCLE), ("B", CROSS), ("Y", SQUARE));
+        // published wheel table
+        foreach (var (n, v) in new[] { ("PS", 0), ("SELECT", 1), ("START", 2), ("RPADDLE", 3), ("R2", 4), ("R3", 5),
+                     ("LPADDLE", 6), ("L2", 7), ("L3", 8), ("GAS", 9), ("STEERING", 11), ("BRAKE", 12), ("UP", 13),
+                     ("DOWN", 14), ("LEFT", 15), ("RIGHT", 16), ("TRIANGLE", 17), ("CIRCLE", 18), ("CROSS", 19), ("SQUARE", 20) })
+            d["DF_" + n] = v;
+        return d;
+    }
+}

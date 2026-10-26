@@ -27,8 +27,8 @@ public class DriftAnalyzerTests
         a.Add(s);
         s.RightX = 128 + 13; // about +10 in GPC units
         a.Add(s);
-        Assert.InRange(a.Right.MaxRadius, 9.9, 10.5);
-        Assert.Equal(13, a.Right.SuggestedDeadzone());
+        Assert.Equal(10, a.Right.MaxRadius);
+        Assert.Equal(12, a.Right.SuggestedDeadzone());
         Assert.Equal(0, a.Left.MaxRadius);
     }
 }

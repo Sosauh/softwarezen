@@ -1,0 +1,41 @@
+// anti_drift.gpc - radial deadzone with rescale for drifting sticks.
+//
+// Inside the deadzone the stick reads 0, so drift is hidden. Outside it the
+// remaining travel is stretched back to the full 0..100 range, so you keep
+// fine aim and full speed instead of losing the first few percent.
+//
+// Pick values with: gpcrun drift   (it prints a suggested deadzone per stick)
+// Keep them as small as works: every point of deadzone is input you can't feel.
+
+define DEADZONE_L = 8;   // left stick, 0..99
+define DEADZONE_R = 8;   // right stick, 0..99
+
+int sx, sy, mag, scaled;
+
+main {
+    fix_stick(PS4_LX, PS4_LY, DEADZONE_L);
+    fix_stick(PS4_RX, PS4_RY, DEADZONE_R);
+}
+
+function fix_stick(id_x, id_y, dz) {
+    sx = get_ival(id_x);
+    sy = get_ival(id_y);
+    mag = isqrt(sx * sx + sy * sy);
+
+    if (mag <= dz) {
+        set_val(id_x, 0);
+        set_val(id_y, 0);
+        return;
+    }
+
+    // stretch dz..100 back onto 0..100
+    scaled = (mag - dz) * 100 / (100 - dz);
+    set_val(id_x, clamp100(sx * scaled / mag));
+    set_val(id_y, clamp100(sy * scaled / mag));
+}
+
+function clamp100(v) {
+    if (v > 100) return 100;
+    if (v < -100) return -100;
+    return v;
+}

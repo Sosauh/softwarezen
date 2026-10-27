@@ -31,6 +31,9 @@ dotnet run --project runner -c Release -- monitor
 | `gpcrun check <file.gpc>` | nothing | Compile and print diagnostics |
 | `gpcrun sim <file.gpc> [cycles]` | nothing | Run with an untouched controller and print TRACE_1..6 |
 
+Add `--xbox` to `passthrough` or `run` to output a virtual **Xbox 360** pad instead of a DS4. Many older PC
+games (Bully: Scholarship Edition among them) only read Xbox controllers.
+
 With `dotnet run`, put the command after `--`, e.g. `dotnet run --project runner -c Release -- run scripts/anti_drift.gpc`.
 
 **First run order:** `monitor` (does the DS5 read correctly?), `passthrough` (does a controller tester such as
@@ -44,7 +47,7 @@ engine.tests/    doc-derived vectors, combo timing, diagnostics, determinism, ze
 hostwin/         DS5 USB HID, ViGEm DS4 sink, deadline scheduler, HidHide wrapper, engine bridge
 hostwin.tests/   report codec, drift and bridge tests
 runner/          gpcrun console app (the headless engine process)
-scripts/         ready-to-use scripts (anti_drift.gpc)
+scripts/         ready-to-use scripts (anti_drift.gpc, turbo_cross.gpc)
 probes/          Zen probe scripts and the results table
 ```
 

@@ -39,3 +39,15 @@ public class EngineBridgeTests
         Assert.Equal(100, slots[CROSS]);
     }
 }
+
+public class X360AxisTests
+{
+    [Theory]
+    [InlineData(128, false, 0)]
+    [InlineData(0, false, -32768)]
+    [InlineData(255, false, 32767)]
+    [InlineData(0, true, 32767)]   // stick pushed up (raw 0) is +Y on XInput
+    [InlineData(255, true, -32767)]
+    public void AxisConversion(byte raw, bool invert, short expected) =>
+        Assert.Equal(expected, Ds4.VigemX360Sink.Axis(raw, invert));
+}

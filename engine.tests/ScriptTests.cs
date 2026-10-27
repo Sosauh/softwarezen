@@ -47,3 +47,43 @@ public class ScriptTests
         Assert.Equal(73, m.Output[R2]);
     }
 }
+
+public class TurboScriptTests
+{
+    [Fact]
+    public void HoldingCrossFiresTenPressesASecond()
+    {
+        var m = new Machine(Build(ScriptTests.RepoFile("scripts/turbo_cross.gpc")));
+        m.Input[CROSS] = 100;
+        var seen = new List<int>();
+        for (int i = 0; i < 100; i++) { m.RunCycle(); seen.Add(m.Output[CROSS]); } // one second
+        Assert.Equal(new[] { 100, 100, 100, 100, 100, 0, 0, 0, 0, 0 }, seen.Take(10));
+        int presses = seen.Zip(seen.Skip(1), (a, b) => a == 0 && b == 100 ? 1 : 0).Sum() + 1;
+        Assert.Equal(10, presses);
+    }
+
+    [Fact]
+    public void ReleasingCrossStopsImmediately()
+    {
+        var m = new Machine(Build(ScriptTests.RepoFile("scripts/turbo_cross.gpc")));
+        m.Input[CROSS] = 100;
+        for (int i = 0; i < 3; i++) m.RunCycle();
+        m.Input[CROSS] = 0;
+        m.RunCycle();
+        Assert.Equal(0, m.Output[CROSS]);
+        m.Input[CROSS] = 100; // pressing again starts a fresh press, not mid-cycle
+        m.RunCycle();
+        Assert.Equal(100, m.Output[CROSS]);
+    }
+
+    [Fact]
+    public void OtherButtonsPassThrough()
+    {
+        var m = new Machine(Build(ScriptTests.RepoFile("scripts/turbo_cross.gpc")));
+        m.Input[CIRCLE] = 100;
+        m.Input[LX] = -60;
+        m.RunCycle();
+        Assert.Equal(100, m.Output[CIRCLE]);
+        Assert.Equal(-60, m.Output[LX]);
+    }
+}

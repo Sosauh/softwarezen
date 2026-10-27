@@ -7,14 +7,17 @@ using Gpc.HostWin.Ds4;
 using Gpc.HostWin.Ds5;
 using Gpc.HostWin.Timing;
 
+bool xbox = args.Contains("--xbox");
+args = args.Where(a => a != "--xbox").ToArray();
+
 return args.Length == 0 ? Usage() : args[0] switch
 {
     "monitor" => Monitor(),
     "drift" => Drift(args.Length > 1 && int.TryParse(args[1], out int s) ? s : 10),
-    "passthrough" => Passthrough(),
+    "passthrough" => Passthrough(xbox),
     "check" when args.Length > 1 => Check(args[1]),
     "sim" when args.Length > 1 => Sim(args[1], args.Length > 2 && int.TryParse(args[2], out int n) ? n : 100),
-    "run" when args.Length > 1 => RunScript(args[1]),
+    "run" when args.Length > 1 => RunScript(args[1], xbox),
     _ => Usage(),
 };
 
@@ -27,6 +30,7 @@ static int Usage()
         gpcrun check <file.gpc> compile only and print diagnostics (works anywhere)
         gpcrun sim <file.gpc> [cycles]   run with a neutral controller and print TRACE_1..6 (works anywhere)
         gpcrun run <file.gpc>   DS5 -> script -> virtual DS4 (needs ViGEmBus; HidHide recommended)
+        add --xbox to passthrough or run to output a virtual Xbox 360 pad instead (for XInput-only games)
         """);
     return 2;
 }
@@ -105,10 +109,12 @@ static int Drift(int seconds)
     return 0;
 }
 
-static int Passthrough()
+static IPadSink CreateSink(bool xbox) => xbox ? new VigemX360Sink() : new VigemDs4Sink();
+
+static int Passthrough(bool xbox)
 {
     using var dev = OpenDs5();
-    using var sink = new VigemDs4Sink();
+    using var sink = CreateSink(xbox);
     sink.Connect();
     sink.Feedback += f => dev.SendFeedback(f.LargeMotor, f.SmallMotor, f.Red, f.Green, f.Blue);
     var sched = new DeadlineScheduler();
@@ -162,20 +168,20 @@ static int Sim(string path, int cycles)
     return 0;
 }
 
-static int RunScript(string path)
+static int RunScript(string path, bool xbox)
 {
     var script = Load(path);
     if (script == null) return 1;
     var m = new Machine(script);
     using var dev = OpenDs5();
-    using var sink = new VigemDs4Sink();
+    using var sink = CreateSink(xbox);
     sink.Connect();
     var feedbackGate = new object();
     Ds4Feedback feedback = default;
     sink.Feedback += f => { lock (feedbackGate) feedback = f; };
     var sched = new DeadlineScheduler();
     Console.CancelKeyPress += (_, e) => { e.Cancel = true; sched.Stop(); };
-    Console.WriteLine($"Running {Path.GetFileName(path)}. Ctrl+C to stop.");
+    Console.WriteLine($"Running {Path.GetFileName(path)} as a virtual {(xbox ? "Xbox 360 pad" : "DS4")}. Ctrl+C to stop.");
 
     byte lastLarge = 0, lastSmall = 0, lastR = 0, lastG = 0, lastB = 0;
     sched.Run(_ =>

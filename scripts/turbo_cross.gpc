@@ -1,0 +1,25 @@
+// turbo_cross.gpc - hold X (Cross) and it fires as fast repeated presses.
+// Good for button-mash prompts in single-player games (e.g. Bully's mash events).
+//
+// PRESS_MS / RELEASE_MS set the rate: 50 + 50 = 10 presses per second.
+// If the game misses presses, raise both (games running at 30 fps need about 35 ms or more each).
+// To turbo another button, change TURBO_BUTTON (e.g. PS4_SQUARE).
+
+define TURBO_BUTTON = PS4_CROSS;
+define PRESS_MS = 50;
+define RELEASE_MS = 50;
+
+main {
+    if (get_ival(TURBO_BUTTON)) {
+        combo_run(turbo);
+    } else {
+        combo_stop(turbo);
+    }
+}
+
+combo turbo {
+    set_val(TURBO_BUTTON, 100);
+    wait(PRESS_MS);
+    set_val(TURBO_BUTTON, 0);
+    wait(RELEASE_MS);
+}

@@ -39,6 +39,22 @@ With `dotnet run`, put the command after `--`, e.g. `dotnet run --project runner
 **First run order:** `monitor` (does the DS5 read correctly?), `passthrough` (does a controller tester such as
 `joy.cpl` show one DS4 that matches?), then `run scripts/anti_drift.gpc`.
 
+## Safety: anti-cheat games
+
+Scripts change your input. Online games with anti-cheat can detect that and ban the account. These rules are
+built in to make that hard to do by accident:
+
+- `passthrough` and `run` **refuse to start** if a known anti-cheat process is running, and **shut down within
+  about a second** if one starts later: the virtual pad is unplugged, the script stops, and HidHide cloaking is
+  turned off so games see your real DualSense again.
+- `--only <game.exe>` ties the runtime to one game: it quits when that game closes, so it can't be left running.
+  Use it every time, e.g. `run scripts/turbo_cross.gpc --xbox --only Bully.exe`.
+- `--block <name.exe>` adds a process to the anti-cheat list.
+
+Limits, stated plainly: the list in `hostwin/Safety/AntiCheatGuard.cs` is not complete, so a game whose anti-cheat
+is not on it is not caught (use `--only`). ViGEmBus and HidHide stay installed even when gpcrun is closed, and
+whether any anti-cheat flags their mere presence is unknown. Don't run this with online competitive games.
+
 ## Layout
 
 ```

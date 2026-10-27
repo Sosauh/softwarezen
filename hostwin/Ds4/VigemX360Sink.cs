@@ -64,5 +64,7 @@ public sealed class VigemX360Sink : IPadSink
     {
         try { _pad?.Disconnect(); } catch (Exception) { /* already gone */ }
         _client?.Dispose();
+        _pad = null;
+        _client = null;
     }
 }

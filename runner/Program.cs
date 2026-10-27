@@ -5,19 +5,32 @@ using Gpc.Engine.Vm;
 using Gpc.HostWin;
 using Gpc.HostWin.Ds4;
 using Gpc.HostWin.Ds5;
+using Gpc.HostWin.HidHide;
+using Gpc.HostWin.Safety;
 using Gpc.HostWin.Timing;
 
-bool xbox = args.Contains("--xbox");
-args = args.Where(a => a != "--xbox").ToArray();
+bool xbox = false;
+string? onlyGame = null;
+var extraBlocked = new List<string>();
+var positional = new List<string>();
+for (int i = 0; i < args.Length; i++)
+{
+    if (args[i] == "--xbox") xbox = true;
+    else if (args[i] == "--only" && i + 1 < args.Length) onlyGame = args[++i];
+    else if (args[i] == "--block" && i + 1 < args.Length) extraBlocked.Add(args[++i]);
+    else positional.Add(args[i]);
+}
+args = positional.ToArray();
+var guardState = new GuardState(onlyGame, extraBlocked);
 
 return args.Length == 0 ? Usage() : args[0] switch
 {
     "monitor" => Monitor(),
     "drift" => Drift(args.Length > 1 && int.TryParse(args[1], out int s) ? s : 10),
-    "passthrough" => Passthrough(xbox),
+    "passthrough" => Passthrough(xbox, guardState),
     "check" when args.Length > 1 => Check(args[1]),
     "sim" when args.Length > 1 => Sim(args[1], args.Length > 2 && int.TryParse(args[2], out int n) ? n : 100),
-    "run" when args.Length > 1 => RunScript(args[1], xbox),
+    "run" when args.Length > 1 => RunScript(args[1], xbox, guardState),
     _ => Usage(),
 };
 
@@ -30,7 +43,11 @@ static int Usage()
         gpcrun check <file.gpc> compile only and print diagnostics (works anywhere)
         gpcrun sim <file.gpc> [cycles]   run with a neutral controller and print TRACE_1..6 (works anywhere)
         gpcrun run <file.gpc>   DS5 -> script -> virtual DS4 (needs ViGEmBus; HidHide recommended)
-        add --xbox to passthrough or run to output a virtual Xbox 360 pad instead (for XInput-only games)
+        options for passthrough and run:
+          --xbox             output a virtual Xbox 360 pad instead of a DS4 (for XInput-only games)
+          --only <game.exe>  run only while that game runs; quit when it closes (recommended)
+          --block <name.exe> also treat this process as anti-cheat (repeatable)
+        passthrough and run quit by themselves when a known anti-cheat process starts.
         """);
     return 2;
 }
@@ -111,21 +128,79 @@ static int Drift(int seconds)
 
 static IPadSink CreateSink(bool xbox) => xbox ? new VigemX360Sink() : new VigemDs4Sink();
 
-static int Passthrough(bool xbox)
+/// <summary>Refuses to start next to an anti-cheat, then watches for one while running.</summary>
+static AntiCheatGuard? ArmGuard(GuardState state, DeadlineScheduler sched)
 {
+    var guard = new AntiCheatGuard(state);
+    if (guard.CheckNow() is string reason)
+    {
+        Console.Error.WriteLine($"Not starting: {reason}. Close that game first.");
+        return null;
+    }
+    guard.Tripped += r =>
+    {
+        Console.Error.WriteLine();
+        Console.Error.WriteLine($"SAFETY STOP: {r}. Virtual controller unplugged and script stopped.");
+        sched.Stop();
+    };
+    guard.Start();
+    return guard;
+}
+
+/// <summary>Hide the DualSense from games while we run (needs HidHide set up as in the README).</summary>
+static void HideDs5()
+{
+    var hh = new HidHideCli();
+    if (!hh.Installed) return;
+    try { hh.CloakOn(); }
+    catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception)
+    {
+        Console.Error.WriteLine($"Could not turn HidHide cloaking on ({e.Message}); games may see two controllers.");
+    }
+}
+
+/// <summary>On every exit, give the real controller back to games.</summary>
+static void UnhideDs5()
+{
+    var hh = new HidHideCli();
+    if (!hh.Installed) return;
+    try
+    {
+        hh.CloakOff();
+        Console.Error.WriteLine("HidHide cloaking turned off: games can see your DualSense again.");
+    }
+    catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception)
+    {
+        Console.Error.WriteLine($"Could not turn HidHide cloaking off ({e.Message}). Turn it off in HidHide's app to use your DualSense directly.");
+    }
+}
+
+static int Passthrough(bool xbox, GuardState guardState)
+{
+    var sched = new DeadlineScheduler();
+    using var guard = ArmGuard(guardState, sched);
+    if (guard == null) return 3;
     using var dev = OpenDs5();
     using var sink = CreateSink(xbox);
     sink.Connect();
     sink.Feedback += f => dev.SendFeedback(f.LargeMotor, f.SmallMotor, f.Red, f.Green, f.Blue);
-    var sched = new DeadlineScheduler();
     Console.CancelKeyPress += (_, e) => { e.Cancel = true; sched.Stop(); };
     Console.WriteLine("Passthrough running at 10 ms. Ctrl+C to stop.");
-    sched.Run(_ =>
+    HideDs5();
+    try
     {
-        var s = dev.Latest;
-        sink.Submit(Ds5ToDs4.Map(s));
-        return 10_000;
-    });
+        sched.Run(_ =>
+        {
+            var s = dev.Latest;
+            sink.Submit(Ds5ToDs4.Map(s));
+            return 10_000;
+        });
+    }
+    finally
+    {
+        sink.Dispose(); // unplug the virtual pad first
+        UnhideDs5();
+    }
     Console.WriteLine(sched.Stats);
     return 0;
 }
@@ -168,10 +243,13 @@ static int Sim(string path, int cycles)
     return 0;
 }
 
-static int RunScript(string path, bool xbox)
+static int RunScript(string path, bool xbox, GuardState guardState)
 {
     var script = Load(path);
     if (script == null) return 1;
+    var sched = new DeadlineScheduler();
+    using var guard = ArmGuard(guardState, sched);
+    if (guard == null) return 3;
     var m = new Machine(script);
     using var dev = OpenDs5();
     using var sink = CreateSink(xbox);
@@ -179,11 +257,13 @@ static int RunScript(string path, bool xbox)
     var feedbackGate = new object();
     Ds4Feedback feedback = default;
     sink.Feedback += f => { lock (feedbackGate) feedback = f; };
-    var sched = new DeadlineScheduler();
     Console.CancelKeyPress += (_, e) => { e.Cancel = true; sched.Stop(); };
     Console.WriteLine($"Running {Path.GetFileName(path)} as a virtual {(xbox ? "Xbox 360 pad" : "DS4")}. Ctrl+C to stop.");
 
     byte lastLarge = 0, lastSmall = 0, lastR = 0, lastG = 0, lastB = 0;
+    HideDs5();
+    try
+    {
     sched.Run(_ =>
     {
         var s = dev.Latest;
@@ -203,6 +283,12 @@ static int RunScript(string path, bool xbox)
         }
         return next * 1000L;
     });
+    }
+    finally
+    {
+        sink.Dispose(); // unplug the virtual pad first
+        UnhideDs5();
+    }
     Console.WriteLine(sched.Stats);
     if (m.FaultCount > 0) Console.WriteLine($"script faults: {m.FaultCount} (last: {m.LastFault})");
     return 0;

@@ -66,5 +66,7 @@ public sealed class VigemDs4Sink : IPadSink
     {
         try { _pad?.Disconnect(); } catch (Exception) { /* already gone */ }
         _client?.Dispose();
+        _pad = null;
+        _client = null;
     }
 }

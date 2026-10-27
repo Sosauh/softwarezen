@@ -5,32 +5,29 @@ using Gpc.Engine.Vm;
 using Gpc.HostWin;
 using Gpc.HostWin.Ds4;
 using Gpc.HostWin.Ds5;
-using Gpc.HostWin.HidHide;
 using Gpc.HostWin.Safety;
 using Gpc.HostWin.Timing;
 
 bool xbox = false;
 string? onlyGame = null;
-var extraBlocked = new List<string>();
 var positional = new List<string>();
 for (int i = 0; i < args.Length; i++)
 {
     if (args[i] == "--xbox") xbox = true;
     else if (args[i] == "--only" && i + 1 < args.Length) onlyGame = args[++i];
-    else if (args[i] == "--block" && i + 1 < args.Length) extraBlocked.Add(args[++i]);
     else positional.Add(args[i]);
 }
 args = positional.ToArray();
-var guardState = new GuardState(onlyGame, extraBlocked);
+var gameLock = new GameLockState(onlyGame);
 
 return args.Length == 0 ? Usage() : args[0] switch
 {
     "monitor" => Monitor(),
     "drift" => Drift(args.Length > 1 && int.TryParse(args[1], out int s) ? s : 10),
-    "passthrough" => Passthrough(xbox, guardState),
+    "passthrough" => Passthrough(xbox, gameLock),
     "check" when args.Length > 1 => Check(args[1]),
     "sim" when args.Length > 1 => Sim(args[1], args.Length > 2 && int.TryParse(args[2], out int n) ? n : 100),
-    "run" when args.Length > 1 => RunScript(args[1], xbox, guardState),
+    "run" when args.Length > 1 => RunScript(args[1], xbox, gameLock),
     _ => Usage(),
 };
 
@@ -46,8 +43,6 @@ static int Usage()
         options for passthrough and run:
           --xbox             output a virtual Xbox 360 pad instead of a DS4 (for XInput-only games)
           --only <game.exe>  run only while that game runs; quit when it closes (recommended)
-          --block <name.exe> also treat this process as anti-cheat (repeatable)
-        passthrough and run quit by themselves when a known anti-cheat process starts.
         """);
     return 2;
 }
@@ -128,29 +123,24 @@ static int Drift(int seconds)
 
 static IPadSink CreateSink(bool xbox) => xbox ? new VigemX360Sink() : new VigemDs4Sink();
 
-/// <summary>Refuses to start next to an anti-cheat, then watches for one while running.</summary>
-static AntiCheatGuard? ArmGuard(GuardState state, DeadlineScheduler sched)
+/// <summary>With --only, stops the scheduler once that game closes.</summary>
+static GameLock ArmGameLock(GameLockState state, DeadlineScheduler sched)
 {
-    var guard = new AntiCheatGuard(state);
-    if (guard.CheckNow() is string reason)
-    {
-        Console.Error.WriteLine($"Not starting: {reason}. Close that game first.");
-        return null;
-    }
-    guard.Tripped += r =>
+    var gameLock = new GameLock(state);
+    gameLock.Tripped += reason =>
     {
         Console.Error.WriteLine();
-        Console.Error.WriteLine($"SAFETY STOP: {r}. Virtual controller unplugged and script stopped.");
+        Console.Error.WriteLine($"Stopping: {reason}. Virtual controller unplugged and script stopped.");
         sched.Stop();
     };
-    guard.Start();
-    return guard;
+    gameLock.Start();
+    return gameLock;
 }
 
 /// <summary>Hide the DualSense from games while we run (needs HidHide set up as in the README).</summary>
 static void HideDs5()
 {
-    var hh = new HidHideCli();
+    var hh = new Gpc.HostWin.HidHide.HidHideCli();
     if (!hh.Installed) return;
     try { hh.CloakOn(); }
     catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception)
@@ -162,24 +152,19 @@ static void HideDs5()
 /// <summary>On every exit, give the real controller back to games.</summary>
 static void UnhideDs5()
 {
-    var hh = new HidHideCli();
+    var hh = new Gpc.HostWin.HidHide.HidHideCli();
     if (!hh.Installed) return;
-    try
-    {
-        hh.CloakOff();
-        Console.Error.WriteLine("HidHide cloaking turned off: games can see your DualSense again.");
-    }
+    try { hh.CloakOff(); }
     catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception)
     {
         Console.Error.WriteLine($"Could not turn HidHide cloaking off ({e.Message}). Turn it off in HidHide's app to use your DualSense directly.");
     }
 }
 
-static int Passthrough(bool xbox, GuardState guardState)
+static int Passthrough(bool xbox, GameLockState lockState)
 {
     var sched = new DeadlineScheduler();
-    using var guard = ArmGuard(guardState, sched);
-    if (guard == null) return 3;
+    using var gameLock = ArmGameLock(lockState, sched);
     using var dev = OpenDs5();
     using var sink = CreateSink(xbox);
     sink.Connect();
@@ -243,13 +228,12 @@ static int Sim(string path, int cycles)
     return 0;
 }
 
-static int RunScript(string path, bool xbox, GuardState guardState)
+static int RunScript(string path, bool xbox, GameLockState lockState)
 {
     var script = Load(path);
     if (script == null) return 1;
     var sched = new DeadlineScheduler();
-    using var guard = ArmGuard(guardState, sched);
-    if (guard == null) return 3;
+    using var gameLock = ArmGameLock(lockState, sched);
     var m = new Machine(script);
     using var dev = OpenDs5();
     using var sink = CreateSink(xbox);

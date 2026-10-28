@@ -73,8 +73,9 @@ rumble, lightbar, polar, SPVAR/BVAR in memory, and the 128x64 OLED (`gpcrun sim`
 Every behaviour the guide leaves unclear is a flag in `engine/Runtime/CompatFlags.cs` with a guessed default,
 until the probes in `probes/` measure it on a real Zen. Known gaps:
 
-- **Identifier numbers are inferred.** The guide doesn't publish `PS4_*`/`XB1_*`/`TRACE_*` values. Scripts that
-  use names are fine. Scripts that hard-code numbers depend on the table in `engine/Runtime/Identifiers.cs`.
+- **Identifier numbers** come from the official Cronus constant tables (guide.cronus.support, 774 values in
+  `engine/Runtime/PublishedConstants.cs`). Not published anywhere: `TRACE_*`, `TIME_MAX`, `BUTTON_MAX` (best guesses
+  in `Identifiers.cs`; `probes/p0_identifiers.gpc` shows the real ones on a Zen).
 - **`sensitivity`, `deadzone`, `stickize`, polar** use reasonable curves, not measured ones.
 - **`remap` semantics** (what happens to the source) are a guess.
 - **OLED font sizes** other than LARGE (16x26) are a best guess; `probes/p0_identifiers.gpc` helps check them.

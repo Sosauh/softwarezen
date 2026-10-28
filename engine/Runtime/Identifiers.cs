@@ -14,17 +14,18 @@ public static class Identifiers
     public const int RX = 9, RY = 10, LX = 11, LY = 12, UP = 13, DOWN = 14, LEFT = 15, RIGHT = 16;
     public const int TRIANGLE = 17, CIRCLE = 18, CROSS = 19, SQUARE = 20;
     public const int ACCX = 21, ACCY = 22, ACCZ = 23, GYROX = 24, GYROY = 25, GYROZ = 26;
-    public const int TOUCH = 27, TOUCHX = 28, TOUCHY = 29;
-    public const int TRACE_1 = 30; // UNVERIFIED: TRACE_1..TRACE_6 = 30..35
+    // published (guide.cronus.support PS4/PS5 identifier tables)
+    public const int TOUCH = 27, FINGER1X = 28, FINGER1Y = 29, FINGER1 = 30, FINGER2X = 31, FINGER2Y = 32, FINGER2 = 33;
+    public const int TRACE_1 = 38; // UNVERIFIED: no source gives TRACE_* numbers; 38..43 is a free range
     public const int TraceCount = 6;
-    public const int MUTE = 36;                                                  // UNVERIFIED
-    public const int PADDLE_1 = 37, PADDLE_2 = 38, PADDLE_3 = 39, PADDLE_4 = 40; // UNVERIFIED
+    public const int MUTE = 50;                                                  // published: PS5_MUTE
+    public const int PADDLE_1 = 34, PADDLE_2 = 35, PADDLE_3 = 36, PADDLE_4 = 37; // published: XB1_PR1, PR2, PL1, PL2
 
     public const int RUMBLE_A = 0, RUMBLE_B = 1, RUMBLE_RT = 2, RUMBLE_LT = 3; // UNVERIFIED
     public const int RumbleCount = 4;
 
     /// <summary>Buttons are 0/100 and triggers 0..100; these slots are signed axes.</summary>
-    public static bool IsAxis(int slot) => slot is RX or RY or LX or LY or (>= ACCX and <= GYROZ) or TOUCHX or TOUCHY;
+    public static bool IsAxis(int slot) => slot is RX or RY or LX or LY or (>= ACCX and <= GYROZ) or FINGER1X or FINGER1Y or FINGER2X or FINGER2Y;
 
     public static readonly IReadOnlyDictionary<string, int> Constants = Build();
 
@@ -125,7 +126,8 @@ public static class Identifiers
             ("PS", PS), ("OPTIONS", OPTIONS), ("R1", R1), ("R2", R2), ("R3", R3), ("L1", L1), ("L2", L2), ("L3", L3),
             ("TRIANGLE", TRIANGLE), ("CIRCLE", CIRCLE), ("CROSS", CROSS), ("SQUARE", SQUARE),
             ("ACCX", ACCX), ("ACCY", ACCY), ("ACCZ", ACCZ), ("GYROX", GYROX), ("GYROY", GYROY), ("GYROZ", GYROZ),
-            ("TOUCH", TOUCH), ("TOUCHX", TOUCHX), ("TOUCHY", TOUCHY),
+            ("TOUCH", TOUCH), ("FINGER1X", FINGER1X), ("FINGER1Y", FINGER1Y), ("FINGER1", FINGER1),
+            ("FINGER2X", FINGER2X), ("FINGER2Y", FINGER2Y), ("FINGER2", FINGER2),
         };
         Platform("PS4_", sony.Append(("SHARE", SHARE)).ToArray());
         Platform("PS5_", sony.Append(("CREATE", SHARE)).Append(("SHARE", SHARE)).ToArray());
@@ -138,6 +140,9 @@ public static class Identifiers
             ("LB", L1), ("LT", L2), ("LS", L3), ("Y", TRIANGLE), ("B", CIRCLE), ("A", CROSS), ("X", SQUARE));
         Platform("SWI_", ("HOME", PS), ("MINUS", SHARE), ("PLUS", OPTIONS), ("R", R1), ("ZR", R2), ("RS", R3),
             ("L", L1), ("ZL", L2), ("LS", L3), ("X", TRIANGLE), ("A", CIRCLE), ("B", CROSS), ("Y", SQUARE));
+        // Published tables override every inferred value above (guide.cronus.support, PublishedConstants.cs).
+        foreach (var (name, value) in PublishedConstants.All) d[name] = value;
+
         // published wheel table
         foreach (var (n, v) in new[] { ("PS", 0), ("SELECT", 1), ("START", 2), ("RPADDLE", 3), ("R2", 4), ("R3", 5),
                      ("LPADDLE", 6), ("L2", 7), ("L3", 8), ("GAS", 9), ("STEERING", 11), ("BRAKE", 12), ("UP", 13),

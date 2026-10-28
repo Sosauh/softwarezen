@@ -320,3 +320,34 @@ public class DeclarationOrderTests
         Assert.Contains(r.Errors, e => e.Code == "GZ5102" && e.Message.Contains("'v'"));
     }
 }
+
+/// <summary>Values from the official Cronus constant tables (guide.cronus.support).</summary>
+public class PublishedConstantTests
+{
+    [Theory]
+    [InlineData("PS4_CROSS", 19)]
+    [InlineData("PS4_TOUCH", 27)]
+    [InlineData("PS4_FINGER1", 30)]
+    [InlineData("PS4_FINGER2Y", 32)]
+    [InlineData("PS5_MUTE", 50)]
+    [InlineData("XB1_SHARE", 21)]
+    [InlineData("XB1_PR1", 34)]
+    [InlineData("XB1_PL2", 37)]
+    [InlineData("SWI_A", 18)]
+    [InlineData("SWI_CAPTURE", 27)]
+    [InlineData("WII_IRX", 28)]
+    [InlineData("KEY_ENTER", 40)]
+    [InlineData("MOD_RGUI", 128)]
+    [InlineData("OLED_FONT_MEDIUM_HEIGHT", 18)]
+    [InlineData("PIO_PS5", 7)]
+    [InlineData("PS4_GREEN", 2)]
+    [InlineData("SPVAR_1", -32768)]
+    public void MatchesTheOfficialTables(string name, int value) => Assert.Equal(value, Harness.Eval(name));
+
+    [Fact]
+    public void EveryPublishedConstantIsDefined()
+    {
+        foreach (var (name, value) in Runtime.PublishedConstants.All)
+            Assert.Equal(value, Runtime.Identifiers.Constants[name]);
+    }
+}

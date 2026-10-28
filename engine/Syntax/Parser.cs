@@ -496,10 +496,29 @@ public sealed class Parser
             if (AtWord("case")) { Advance(); label = ParseTernary(); }
             else if (AtWord("default")) { Advance(); label = null; }
             else { Error("GZ2103", $"expected 'case' or 'default' but found {Describe(Cur)}"); throw new ParseAbort(); }
-            Expect(TokenKind.Colon, "GZ2100", "':'");
-            if (!At(TokenKind.LBrace)) { Error("GZ2113", "case bodies must be in braces"); throw new ParseAbort(); }
-            var body = ParseBlock();
-            cases.Add(new SwitchCase(label, body, From(cs)));
+            if (!Accept(TokenKind.Colon))
+            {
+                // scripts in the wild write "case 1 { ... }"; the Zen compiler takes it
+                if (At(TokenKind.LBrace)) _diag.Warning("GZ2109", "missing ':' after the case label", Cur.Span);
+                else { Error("GZ2100", $"expected ':' after the case label but found {Describe(Cur)}"); throw new ParseAbort(); }
+            }
+            // The body runs to the next case/default or the closing '}': a braced block, bare
+            // statements ("case 1: x = 1; break;"), or nothing ("case 1: case 2: { ... }" shares a body).
+            var bodyStart = Cur.Span;
+            var stmts = new List<Stmt>();
+            while (!AtWord("case") && !AtWord("default") && !At(TokenKind.RBrace) && !At(TokenKind.End))
+            {
+                int before = _pos;
+                try
+                {
+                    stmts.Add(ParseStatement());
+                }
+                catch (ParseAbort)
+                {
+                    SyncStatement(before);
+                }
+            }
+            cases.Add(new SwitchCase(label, new Block(stmts, From(bodyStart)), From(cs)));
         }
         Expect(TokenKind.RBrace, "GZ2106", "'}'");
         return new SwitchStmt(value, cases, From(start));

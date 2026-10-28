@@ -214,3 +214,39 @@ public class LanguageTests
         Assert.Contains(r.Diagnostics, d => d.Code == "GZ2108");
     }
 }
+
+public class SwitchSyntaxTests
+{
+    const string Cases = """
+        int v; int r;
+        main {
+            r = 0;
+            switch (v) {
+                case 1 { r = 10; break; }
+                case 2:
+                case 3: { r = 23; break; }
+                case 4: r = 40; break;
+                default { r = 99; }
+            }
+            set_val(TRACE_1, r);
+        }
+        """;
+
+    [Theory]
+    [InlineData(1, 10)]
+    [InlineData(2, 23)]
+    [InlineData(3, 23)]
+    [InlineData(4, 40)]
+    [InlineData(7, 99)]
+    public void LooseCaseSpellingsAllWork(int v, int expected) =>
+        Assert.Equal(expected, Harness.Run(Cases.Replace("int v;", $"int v = {v};")).Trace(1));
+
+    [Fact]
+    public void MissingColonIsOnlyAWarning()
+    {
+        var r = Compile.GpcCompiler.Compile(Cases);
+        Assert.True(r.Success, string.Join("\n", r.Errors));
+        Assert.Contains(r.Diagnostics, d => d.Code == "GZ2109");
+        Assert.DoesNotContain(r.Diagnostics, d => d.Code == "GZ6018"); // nothing here really falls through
+    }
+}

@@ -705,8 +705,10 @@ sealed class Emitter
         {
             bodyStart[i] = _code.Count;
             EmitBlock(sw.Cases[i].Body);
-            var last = sw.Cases[i].Body.Statements.LastOrDefault();
-            if (i < sw.Cases.Count - 1 && last is not (BreakStmt or ReturnStmt or ContinueStmt))
+            Stmt? last = sw.Cases[i].Body.Statements.LastOrDefault();
+            while (last is Block inner) last = inner.Statements.LastOrDefault(); // "case 1: { ...; break; }"
+            bool sharesNextBody = sw.Cases[i].Body.Statements.Count == 0;       // "case 1: case 2: ..."
+            if (i < sw.Cases.Count - 1 && !sharesNextBody && last is not (BreakStmt or ReturnStmt or ContinueStmt))
                 Warn("GZ6018", "case falls through to the next case", sw.Cases[i].Span);
         }
         _loops.Remove(ctx);

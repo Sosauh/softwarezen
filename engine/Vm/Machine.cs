@@ -33,6 +33,12 @@ public sealed class Machine
     readonly int[] _ptime = new int[SlotCount], _brtime = new int[SlotCount];
     readonly int[] _blockLeft = new int[SlotCount];
     readonly bool[] _isRemapTarget = new bool[SlotCount];
+    // set_remapper: a device-level remap the script can change at run time (identity until changed)
+    readonly int[] _deviceRemap = new int[SlotCount];
+    readonly bool[] _isDeviceRemapTarget = new bool[SlotCount];
+    int _deviceRemapCount;
+    // PS5 adaptive-trigger records (R2, L2), 11 bytes each; kept for get/set/compare, not sent to the PC pad
+    readonly int[,] _adt = new int[2, 11];
 
     // script state
     readonly int[] _globals;
@@ -81,6 +87,7 @@ public sealed class Machine
         Array.Fill(_cRanCycle, -1);
         Array.Fill(_brtime, _f.InitialBrtime);
         foreach (var r in script.Remaps) if (r.Target >= 0) _isRemapTarget[r.Target] = true;
+        for (int i = 0; i < SlotCount; i++) _deviceRemap[i] = i;
         for (int i = 0; i < 360; i++) _sin[i] = (int)Math.Round(Math.Sin(i * Math.PI / 180) * 10000, MidpointRounding.AwayFromZero);
         _rng = seed == 0 ? 1 : seed;
         _cycleMs = _f.BaseCycleMs;
@@ -176,8 +183,35 @@ public sealed class Machine
                 }
             }
         }
+        if (_deviceRemapCount > 0)
+        {
+            Array.Copy(_out, _remapScratch, SlotCount);
+            for (int i = 0; i < SlotCount; i++)
+            {
+                int to = _deviceRemap[i];
+                if (to == i) continue;
+                _out[to] = _remapScratch[i];
+                if (!_isDeviceRemapTarget[i]) _out[i] = 0;
+            }
+        }
         if (_f.LvalLayer == RemapLayer.PostRemap) Array.Copy(_out, _lastOut, SlotCount);
     }
+
+    void SetDeviceRemap(int from, int to)
+    {
+        if (!ValidSlot(from) || !ValidSlot(to)) return;
+        _deviceRemap[from] = to;
+        Array.Clear(_isDeviceRemapTarget);
+        _deviceRemapCount = 0;
+        for (int i = 0; i < SlotCount; i++)
+        {
+            if (_deviceRemap[i] == i) continue;
+            _deviceRemapCount++;
+            _isDeviceRemapTarget[_deviceRemap[i]] = true;
+        }
+    }
+
+    static int AdtSide(int trigger) => trigger == R2 ? 0 : trigger == L2 ? 1 : -1;
 
     // ================= combos =================
 
@@ -712,6 +746,41 @@ public sealed class Machine
             case Bi.ps4_set_touchpad: break;
             case Bi.get_keyboard: Push(0); break;
             case Bi.get_modifiers: Push(0); break;
+            case Bi.ps4_authtimeout: Push(0); break;          // no console authentication on PC
+            case Bi.output_reconnection: break;
+            case Bi.get_info: Push(0); break;                 // M&K / Zen Link info has no PC counterpart
+            case Bi.wiir_offscreen: Push(0); break;
+            case Bi.set_remapper: SetDeviceRemap(A0, A1); break;
+            case Bi.get_adt:
+            {
+                int side = AdtSide(A0);
+                Push(side >= 0 && (uint)A1 < 11 ? _adt[side, A1] : 0);
+                break;
+            }
+            case Bi.set_adt:
+            {
+                int side = AdtSide(A0);
+                if (side >= 0 && (uint)A1 < 11) _adt[side, A1] = Math.Clamp(A2, 0, 255);
+                break;
+            }
+            case Bi.adt_off:
+            {
+                int side = AdtSide(A0);
+                if (side >= 0) for (int i = 0; i < 11; i++) _adt[side, i] = 0;
+                break;
+            }
+            case Bi.adt_cmp:
+            case Bi.adt_setx:
+            {
+                int side = AdtSide(A0);
+                var rec = (uint)A1 < (uint)_s.Consts.Length ? _s.Consts[A1].Values : null; // addr(record) is its const id
+                if (side < 0 || rec == null || rec.Length < 11) { if (id == Bi.adt_cmp) Push(0); break; }
+                if (id == Bi.adt_setx) { for (int i = 0; i < 11; i++) _adt[side, i] = rec[i]; break; }
+                bool same = true;
+                for (int i = 0; i < 11; i++) same &= _adt[side, i] == rec[i];
+                Push(same ? 1 : 0);
+                break;
+            }
             case Bi.cls_oled: Oled.Clear(A0); break;
             case Bi.pixel_oled: Oled.Pixel(A0, A1, A2); break;
             case Bi.line_oled: Oled.Line(A0, A1, A2, A3, st[a + 4], st[a + 5]); break;

@@ -88,3 +88,52 @@ public class BuiltinTests
         Assert.Equal(0, m.RumbleOut(1));
     }
 }
+
+public class MoreBuiltinTests
+{
+    [Fact]
+    public void SetRemapperMovesAButtonAtRunTime()
+    {
+        var m = new Vm.Machine(Harness.Build("init { set_remapper(PS4_CROSS, PS4_CIRCLE); } main { }"));
+        m.Input[Runtime.Identifiers.CROSS] = 100;
+        m.RunCycle();
+        Assert.Equal(100, m.Output[Runtime.Identifiers.CIRCLE]);
+        Assert.Equal(0, m.Output[Runtime.Identifiers.CROSS]);
+    }
+
+    [Fact]
+    public void AdaptiveTriggerRecordsRoundTrip()
+    {
+        var m = Harness.Run("""
+            const ps5adt HEAVY = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
+            int a; int b; int c;
+            main {
+                adt_setx(PS5_R2, addr(HEAVY));
+                a = adt_cmp(PS5_R2, addr(HEAVY));
+                set_adt(PS5_R2, PS5_ADT_FREQ, 99);
+                b = adt_cmp(PS5_R2, addr(HEAVY));
+                c = get_adt(PS5_R2, PS5_ADT_FREQ);
+                set_val(TRACE_1, a); set_val(TRACE_2, b); set_val(TRACE_3, c);
+            }
+            """);
+        Assert.Equal(1, m.Trace(1));
+        Assert.Equal(0, m.Trace(2));
+        Assert.Equal(99, m.Trace(3));
+    }
+
+    [Theory]
+    [InlineData("KEY_A", 4)]
+    [InlineData("KEY_SPACE", 44)]
+    [InlineData("MOD_LALT", 4)]
+    [InlineData("MOD_RGUI", 128)]
+    [InlineData("PS5_ADT_STRENGTH_HIGH", 6)]
+    [InlineData("PS5_HAPTICS_L", 26)]
+    public void GuideNamedConstantsExist(string name, int expected) => Assert.Equal(expected, Harness.Eval(name));
+
+    [Fact]
+    public void LegacyAndDeviceBuiltinsCompile()
+    {
+        var r = Compile.GpcCompiler.Compile("int x; main { x = ps4_authtimeout(); output_reconnection(); x = get_info(ZENLINK_STATUS); x = wiir_offscreen(); adt_off(PS5_L2); }");
+        Assert.True(r.Success, string.Join("\n", r.Errors));
+    }
+}

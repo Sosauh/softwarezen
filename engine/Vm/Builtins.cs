@@ -15,6 +15,7 @@ public enum Bi
     get_battery, get_controller, get_console, turn_off,
     set_polar, set_polar2, get_polar, get_ipolar,
     ps4_touchpad, ps4_set_touchpad, get_keyboard, get_modifiers,
+    ps4_authtimeout, output_reconnection, get_adt, set_adt, adt_off, adt_cmp, adt_setx, get_info, set_remapper, wiir_offscreen,
     cls_oled, pixel_oled, line_oled, rect_oled, circle_oled, putc_oled, puts_oled, image_oled, print_oled,
 }
 
@@ -81,6 +82,11 @@ public static class Builtins
             new("get_polar", Bi.get_polar, 2, true), new("get_ipolar", Bi.get_ipolar, 2, true),
             new("ps4_touchpad", Bi.ps4_touchpad, 1, true), new("ps4_set_touchpad", Bi.ps4_set_touchpad, 2, false),
             new("get_keyboard", Bi.get_keyboard, 1, true), new("get_modifiers", Bi.get_modifiers, 1, true),
+            new("ps4_authtimeout", Bi.ps4_authtimeout, 0, true), new("output_reconnection", Bi.output_reconnection, 0, false),
+            new("get_adt", Bi.get_adt, 2, true), new("set_adt", Bi.set_adt, 3, false), new("adt_off", Bi.adt_off, 1, false),
+            new("adt_cmp", Bi.adt_cmp, 2, true), new("adt_setx", Bi.adt_setx, 2, false),
+            new("get_info", Bi.get_info, 1, true), new("set_remapper", Bi.set_remapper, 2, false),
+            new("wiir_offscreen", Bi.wiir_offscreen, 0, true),
             // the virtual 128x64 OLED (Machine.Oled); hosts show it in a window
             new("cls_oled", Bi.cls_oled, 1, false), new("pixel_oled", Bi.pixel_oled, 3, false), new("line_oled", Bi.line_oled, 6, false),
             new("rect_oled", Bi.rect_oled, 6, false), new("circle_oled", Bi.circle_oled, 5, false), new("putc_oled", Bi.putc_oled, 2, false),

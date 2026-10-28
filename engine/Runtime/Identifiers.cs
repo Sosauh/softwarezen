@@ -17,6 +17,8 @@ public static class Identifiers
     public const int TOUCH = 27, TOUCHX = 28, TOUCHY = 29;
     public const int TRACE_1 = 30; // UNVERIFIED: TRACE_1..TRACE_6 = 30..35
     public const int TraceCount = 6;
+    public const int MUTE = 36;                                                  // UNVERIFIED
+    public const int PADDLE_1 = 37, PADDLE_2 = 38, PADDLE_3 = 39, PADDLE_4 = 40; // UNVERIFIED
 
     public const int RUMBLE_A = 0, RUMBLE_B = 1, RUMBLE_RT = 2, RUMBLE_LT = 3; // UNVERIFIED
     public const int RumbleCount = 4;
@@ -69,6 +71,39 @@ public static class Identifiers
         // ASCII and OLED glyph codes, as published in the guide's constants reference
         for (int i = 0; i <= 9; i++) d[$"ASCII_DIGIT{i}"] = '0' + i;
         for (char c = 'A'; c <= 'Z'; c++) { d[$"ASCII_UPPER_{c}"] = c; d[$"ASCII_LOWER_{c}"] = char.ToLowerInvariant(c); }
+        // Keyboard usages (USB HID, matching the guide's 4..251 range) and modifier masks. UNVERIFIED names beyond
+        // KEY_A, KEY_SPACE, MOD_LCTRL, MOD_LSHIFT, MOD_LALT; the guide publishes no values for these categories.
+        for (char c = 'A'; c <= 'Z'; c++) d[$"KEY_{c}"] = 4 + (c - 'A');
+        for (int i = 1; i <= 9; i++) d[$"KEY_{i}"] = 29 + i;
+        d["KEY_0"] = 39;
+        for (int i = 1; i <= 12; i++) d[$"KEY_F{i}"] = 57 + i;
+        foreach (var (name, value) in new (string, int)[] {
+            ("ENTER", 40), ("ESCAPE", 41), ("ESC", 41), ("BACKSPACE", 42), ("TAB", 43), ("SPACE", 44), ("MINUS", 45),
+            ("EQUAL", 46), ("LEFTBRACE", 47), ("RIGHTBRACE", 48), ("BACKSLASH", 49), ("SEMICOLON", 51), ("APOSTROPHE", 52),
+            ("GRAVE", 53), ("COMMA", 54), ("DOT", 55), ("PERIOD", 55), ("SLASH", 56), ("CAPSLOCK", 57), ("PRINTSCREEN", 70),
+            ("SCROLLLOCK", 71), ("PAUSE", 72), ("INSERT", 73), ("HOME", 74), ("PAGEUP", 75), ("DELETE", 76), ("END", 77),
+            ("PAGEDOWN", 78), ("RIGHT", 79), ("LEFT", 80), ("DOWN", 81), ("UP", 82), ("NUMLOCK", 83),
+            ("LEFTCTRL", 224), ("LEFTSHIFT", 225), ("LEFTALT", 226), ("LEFTGUI", 227),
+            ("RIGHTCTRL", 228), ("RIGHTSHIFT", 229), ("RIGHTALT", 230), ("RIGHTGUI", 231) })
+            d["KEY_" + name] = value;
+        foreach (var (name, bit) in new[] { ("LCTRL", 0), ("LSHIFT", 1), ("LALT", 2), ("LGUI", 3), ("RCTRL", 4), ("RSHIFT", 5), ("RALT", 6), ("RGUI", 7) })
+            d["MOD_" + name] = 1 << bit;
+
+        // PS5 adaptive-trigger record fields, in the guide's field order (UNVERIFIED that value = position)
+        foreach (var (name, index) in new[] { ("MODE", 0), ("START", 1), ("FORCE1", 2), ("FORCE2", 3), ("STRENGTH_LOW", 4),
+                     ("STRENGTH_MID", 5), ("STRENGTH_HIGH", 6), ("UNK1", 7), ("UNK2", 8), ("FREQ", 9), ("UNK3", 10) })
+            d["PS5_ADT_" + name] = index;
+        d["PS5_ADT_CR"] = 1; // a mode value; mode numbers are not published (UNVERIFIED)
+        // PS5 haptics on/off detection ids for get_rumble (stated in the changelog)
+        d["PS5_HAPTICS_L"] = 26;
+        d["PS5_HAPTICS_R"] = 27;
+        d["PS5_MUTE"] = MUTE;
+        d["PS4_TOUCHPAD"] = TOUCH;
+        d["SWI_CAPTURE"] = TOUCH;
+        foreach (var (name, slot) in new[] { ("PR1", PADDLE_1), ("PR2", PADDLE_2), ("PL1", PADDLE_3), ("PL2", PADDLE_4) })
+            d["XB1_" + name] = slot; // Elite paddles (UNVERIFIED slots)
+        d["ZENLINK_STATUS"] = 0;
+
         foreach (var (name, value) in new (string, int)[] { ("SPACE", 32), ("EXCLAMATION", 33), ("DOUBLE_QUOTE", 34), ("QUOTE", 34), ("POUND", 35), ("DOLLAR", 36), ("PERCENT", 37), ("AMPERSAND", 38), ("AND", 38), ("SINGLE_QUOTE", 39), ("APOSTROPHE", 39), ("LEFT_PARENTHESIS", 40), ("OPEN_PARENTHESIS", 40), ("RIGHT_PARENTHESIS", 41), ("CLOSE_PARENTHESIS", 41), ("ASTERISK", 42), ("PLUS", 43), ("COMMA", 44), ("MINUS", 45), ("PERIOD", 46), ("SLASH", 47), ("COLON", 58), ("SEMICOLON", 59), ("LESS_THAN", 60), ("EQUAL", 61), ("GREATER_THAN", 62), ("QUESTION", 63), ("AT", 64), ("LEFT_BRACKET", 91), ("LEFT_SQUARE_BRACKET", 91), ("OPEN_SQUARE_BRACKET", 91), ("OPEN_BRACKET", 91), ("BACKSLASH", 92), ("RIGHT_BRACKET", 93), ("RIGHT_SQUARE_BRACKET", 93), ("CLOSE_BRACKET", 93), ("CARAT", 94), ("UNDERSCORE", 95), ("GRAVE", 96), ("BACK_QUOTE", 96), ("LEFT_BRACE", 123), ("OPEN_BRACE", 123), ("LEFT_CURLY_BRACE", 123), ("OPEN_CURLY_BRACE", 123), ("LEFT_CURLY_BRACKET", 123), ("VERTICAL_BAR", 124), ("BAR", 124), ("PIPE", 124), ("RIGHT_BRACE", 125), ("CLOSE_BRACE", 125), ("RIGHT_CURLY_BRACE", 125), ("CLOSE_CURLY_BRACE", 125), ("RIGHT_CURLY_BRACKET", 125), ("TILDE", 126), ("PS_CROSS", 127), ("PS_CIRCLE", 128), ("PS_SQUARE", 129), ("PS_TRIANGLE", 130), ("DPAD_UP", 131), ("DPAD_DOWN", 132), ("DPAD_LEFT", 133), ("DPAD_RIGHT", 134), ("XB_VIEW", 135), ("XB_MENU", 136) })
             d["ASCII_" + name] = value;
         for (int i = 1; i <= 64; i++) d[$"SPVAR_{i}"] = i; // UNVERIFIED

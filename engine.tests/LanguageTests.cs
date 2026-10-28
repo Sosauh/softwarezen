@@ -280,3 +280,43 @@ public class ConstantNameTests
         Assert.Contains("SOMETHING_UNKNOWN", d.Message);
     }
 }
+
+public class DeclarationOrderTests
+{
+    [Fact]
+    public void ConstDataCanUseEnumsDeclaredLater()
+    {
+        var m = Harness.Run("const uint8 ORDER[] = { LAST, FIRST }; main { set_val(TRACE_1, ORDER[0]); } enum { FIRST, MIDDLE, LAST };");
+        Assert.Equal(2, m.Trace(1));
+    }
+
+    [Fact]
+    public void ConstDataCanReadOtherConstArraysAnywhere()
+    {
+        var m = Harness.Run("""
+            const int16 B[] = { A[2] * 10, GRID[1][0], sizeof(A) };
+            const int16 A[] = { 4, 5, 6 };
+            const int8 GRID[][] = { { 1, 2 }, { -3, 4 } };
+            define D = A[1] + 1;
+            main { set_val(TRACE_1, B[0]); set_val(TRACE_2, B[1]); set_val(TRACE_3, B[2]); set_val(TRACE_4, D); }
+            """);
+        Assert.Equal(60, m.Trace(1));
+        Assert.Equal(-3, m.Trace(2));
+        Assert.Equal(3, m.Trace(3));
+        Assert.Equal(6, m.Trace(4));
+    }
+
+    [Fact]
+    public void SelfReferencingConstIsAnErrorNotAHang()
+    {
+        var r = Compile.GpcCompiler.Compile("const int16 X[] = { X[0] }; main { }");
+        Assert.False(r.Success);
+    }
+
+    [Fact]
+    public void VariablesAreStillNotConstants()
+    {
+        var r = Compile.GpcCompiler.Compile("int v = 3; const int16 X[] = { v }; main { }");
+        Assert.Contains(r.Errors, e => e.Code == "GZ5102" && e.Message.Contains("'v'"));
+    }
+}

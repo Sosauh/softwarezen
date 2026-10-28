@@ -54,6 +54,8 @@ sealed class Emitter
     readonly HashSet<string> _evaluating = new();
     readonly Dictionary<string, int> _enumValues = new();
     readonly Dictionary<string, int> _constIds = new();
+    readonly Dictionary<string, ConstDecl> _constDecls = new();
+    readonly HashSet<ConstDecl> _constsDone = new(), _constsInProgress = new();
     readonly List<ConstArray> _consts = new();
     readonly Dictionary<string, Global> _globals = new();
     readonly List<int> _globalInit = new();
@@ -128,6 +130,29 @@ sealed class Emitter
     bool DataNameTaken(string name) =>
         _defines.ContainsKey(name) || _enumValues.ContainsKey(name) || _constIds.ContainsKey(name) || _globals.ContainsKey(name);
 
+    /// <summary>A const array element with a constant index is itself a constant: TABLE[2], GRID[1][0].</summary>
+    int? ConstElement(IndexExpr ix)
+    {
+        int? col = EvalConst(ix.Index);
+        if (col == null) return null;
+        if (ix.Target is NameExpr n && ConstArrayFor(n.Name) is ConstArray a && !a.HoldsAddresses && a.Dimensions != 2)
+            return (uint)col < (uint)a.Values.Length ? a.Values[col.Value] : null;
+        if (ix.Target is IndexExpr { Target: NameExpr n2 } inner && ConstArrayFor(n2.Name) is ConstArray g && g.Dimensions == 2
+            && EvalConst(inner.Index) is int row && (uint)row < (uint)g.Rows && (uint)col < (uint)g.Columns)
+            return g.Values[row * g.Columns + col.Value];
+        if (ix.Target is NameExpr s && ConstArrayFor(s.Name) is ConstArray str && str.HoldsAddresses)
+            return str.Dimensions == 0 ? unchecked(str.Values[0] + col.Value) : (uint)col < (uint)str.Values.Length ? str.Values[col.Value] : null;
+        return null;
+    }
+
+    ConstArray? ConstArrayFor(string name)
+    {
+        if (_curFunc != null && _curFunc.Decl.Parameters.Contains(name)) return null;
+        if (_globals.ContainsKey(name)) return null;
+        if (!_constIds.ContainsKey(name) && _constDecls.TryGetValue(name, out var decl)) EnsureConst(decl);
+        return _constIds.TryGetValue(name, out int id) ? _consts[id] : null;
+    }
+
     bool CheckNewDataName(string name, SourceSpan at)
     {
         if (Identifiers.Constants.ContainsKey(name))
@@ -174,30 +199,27 @@ sealed class Emitter
             }
         }
 
-        // enums, consts and variables in source order (each may use defines declared anywhere)
+        // Names may be used before their declaration (the Zen compiler is order-independent), so:
+        // all enums first, then consts (collected on demand when another const reads them), then variables.
         foreach (var d in _unit.Decls)
         {
-            switch (d)
+            if (d is ConstDecl c && !_constDecls.ContainsKey(c.Name)) _constDecls[c.Name] = c;
+        }
+        foreach (var en in _unit.Decls.OfType<EnumDecl>())
+        {
+            int next = 0;
+            foreach (var m in en.Members)
             {
-                case EnumDecl en:
-                {
-                    int next = 0;
-                    foreach (var m in en.Members)
-                    {
-                        if (m.Value != null) next = EvalConst(m.Value) ?? next;
-                        if (CheckNewDataName(m.Name, m.Span)) _enumValues[m.Name] = next;
-                        next = unchecked(next + 1);
-                    }
-                    break;
-                }
-                case ConstDecl c:
-                    CollectConst(c);
-                    break;
-                case VarDecl v:
-                    foreach (var item in v.Items) CollectVar(item);
-                    break;
+                if (m.Value != null) next = EvalConst(m.Value) ?? next;
+                if (CheckNewDataName(m.Name, m.Span)) _enumValues[m.Name] = next;
+                next = unchecked(next + 1);
             }
         }
+        foreach (var c in _unit.Decls.OfType<ConstDecl>())
+            EnsureConst(c);
+        foreach (var v in _unit.Decls.OfType<VarDecl>())
+            foreach (var item in v.Items) CollectVar(item);
+
         if (_slots > GpcCompiler.MaxVariableSlots)
             Error("GZ5143", $"the script uses {_slots} variable slots; the limit is {GpcCompiler.MaxVariableSlots}", new SourceSpan(0, 0, 1, 1));
     }
@@ -250,6 +272,20 @@ sealed class Emitter
         "int32" => (int.MinValue, int.MaxValue),
         _ => null,
     };
+
+    /// <summary>Collects a const declaration once, even when another const needs it first.</summary>
+    void EnsureConst(ConstDecl c)
+    {
+        if (_constsDone.Contains(c)) return;
+        if (!_constsInProgress.Add(c))
+        {
+            Error("GZ5102", $"const '{c.Name}' refers to itself", c.Span);
+            return;
+        }
+        CollectConst(c);
+        _constsInProgress.Remove(c);
+        _constsDone.Add(c);
+    }
 
     void CollectConst(ConstDecl c)
     {
@@ -417,7 +453,7 @@ sealed class Emitter
         BinaryExpr b => FindNonConstantName(b.Left) ?? FindNonConstantName(b.Right),
         TernaryExpr t => FindNonConstantName(t.Condition) ?? FindNonConstantName(t.WhenTrue) ?? FindNonConstantName(t.WhenFalse),
         CallExpr c => c.Callee + "(...)",
-        IndexExpr ix => FindNonConstantName(ix.Target),
+        IndexExpr ix => FindNonConstantName(ix.Index) ?? (ix.Target is NameExpr t && ConstArrayFor(t.Name) == null ? t.Name : FindNonConstantName(ix.Target)),
         _ => null,
     };
 
@@ -451,6 +487,7 @@ sealed class Emitter
                 return c != 0 ? EvalConst(t.WhenTrue) : EvalConst(t.WhenFalse);
             }
             case SizeofExpr s: return Sizeof(s);
+            case IndexExpr ix: return ConstElement(ix);
             default: return null;
         }
     }
@@ -461,14 +498,14 @@ sealed class Emitter
             return s.TypeName switch { "int8" or "uint8" => 1, "int16" or "uint16" => 2, "int24" or "uint24" => 3, _ => 4 };
         switch (s.Operand)
         {
-            case NameExpr n when _constIds.TryGetValue(n.Name, out int id):
-                return _consts[id].ElementType == "string" && _consts[id].Dimensions == 0 ? _consts[id].Columns : _consts[id].Length;
+            case NameExpr n when ConstArrayFor(n.Name) is ConstArray ca:
+                return ca.ElementType == "string" && ca.Dimensions == 0 ? ca.Columns : ca.Length;
             case NameExpr n when _globals.TryGetValue(n.Name, out var g):
                 return g.Size;
             case NameExpr n when _curFunc != null && _curFunc.Decl.Parameters.Contains(n.Name):
                 return 1;
-            case IndexExpr { Target: NameExpr n } when _constIds.TryGetValue(n.Name, out int id2) && _consts[id2].Dimensions == 2:
-                return _consts[id2].Columns;
+            case IndexExpr { Target: NameExpr n } when ConstArrayFor(n.Name) is ConstArray grid && grid.Dimensions == 2:
+                return grid.Columns;
             case IndexExpr:
                 return 1;
         }

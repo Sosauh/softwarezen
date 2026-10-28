@@ -66,6 +66,7 @@ public sealed class Lexer
         if (char.IsDigit(c) || (c == '.' && char.IsDigit(Peek(1))))
             return Number(start, line, col);
         if (c == '"') return StringLit(start, line, col);
+        if (c == '\'' && _pos + 2 < _src.Length) return CharLit(start, line, col);
 
         _pos++;
         TokenKind k = c switch
@@ -171,6 +172,16 @@ public sealed class Lexer
         if (Peek() != '"') _diag.Error("GZ1005", "unterminated string literal", SpanFrom(start, line, col));
         else _pos++;
         return new(TokenKind.String, sb.ToString(), 0, SpanFrom(start, line, col));
+    }
+
+    /// <summary>'A' is the number 65. Not in the guide, but common in scripts, so accepted.</summary>
+    Token CharLit(int start, int line, int col)
+    {
+        _pos++;
+        int v = Peek() is '\'' or '\n' ? 0 : ReadCharInLiteral();
+        if (Peek() != '\'') _diag.Error("GZ1006", "unterminated character literal", SpanFrom(start, line, col));
+        else _pos++;
+        return new(TokenKind.Integer, _src[start.._pos], v, SpanFrom(start, line, col));
     }
 
     char ReadCharInLiteral()

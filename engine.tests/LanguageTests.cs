@@ -250,3 +250,33 @@ public class SwitchSyntaxTests
         Assert.DoesNotContain(r.Diagnostics, d => d.Code == "GZ6018"); // nothing here really falls through
     }
 }
+
+public class ConstantNameTests
+{
+    [Theory]
+    [InlineData("ASCII_UPPER_A", 65)]
+    [InlineData("ASCII_LOWER_Z", 122)]
+    [InlineData("ASCII_DIGIT7", 55)]
+    [InlineData("ASCII_SPACE", 32)]
+    [InlineData("ASCII_PIPE", 124)]
+    [InlineData("ASCII_PS_TRIANGLE", 130)]
+    [InlineData("ASCII_XB_MENU", 136)]
+    [InlineData("'A'", 65)]
+    [InlineData("'0' + 3", 51)]
+    public void AsciiConstantsAndCharLiterals(string expr, int expected) => Assert.Equal(expected, Harness.Eval(expr));
+
+    [Fact]
+    public void ConstArraysAcceptAsciiNames()
+    {
+        var m = Harness.Run("const uint8 WORD[] = { ASCII_UPPER_S, ASCII_UPPER_N, 'A', ASCII_UPPER_K, ASCII_UPPER_E }; main { set_val(TRACE_1, WORD[2]); }");
+        Assert.Equal(65, m.Trace(1));
+    }
+
+    [Fact]
+    public void NotConstantErrorNamesTheCulprit()
+    {
+        var r = Compile.GpcCompiler.Compile("const uint8 X[] = { 1, SOMETHING_UNKNOWN }; main { }");
+        var d = Assert.Single(r.Errors, e => e.Code == "GZ5102");
+        Assert.Contains("SOMETHING_UNKNOWN", d.Message);
+    }
+}

@@ -263,7 +263,7 @@ sealed class Emitter
             if (init is ConstValue cv)
             {
                 int? v = EvalConst(cv.Value);
-                if (v == null) { Error("GZ5102", "const data must be compile-time constants", cv.Span); return 0; }
+                if (v == null) { Error("GZ5102", NotConstantMessage("const data must be compile-time constants", cv.Value), cv.Span); return 0; }
                 if (v < range.min || v > range.max)
                     Error("GZ5114", $"{v} does not fit in {c.ElementType} ({range.min}..{range.max})", cv.Span);
                 return v.Value;
@@ -344,7 +344,7 @@ sealed class Emitter
                     foreach (var e in data.Values)
                     {
                         int v = EvalConst(e) ?? 0;
-                        if (EvalConst(e) == null) Error("GZ5102", "data() values must be compile-time constants", e.Span);
+                        if (EvalConst(e) == null) Error("GZ5102", NotConstantMessage("data() values must be compile-time constants", e), e.Span);
                         if (v is >= -128 and <= 255) _data.Add((byte)v);
                         else if (v is >= short.MinValue and <= ushort.MaxValue)
                         {
@@ -402,6 +402,24 @@ sealed class Emitter
         }
         return Identifiers.Constants.TryGetValue(name, out value);
     }
+
+    /// <summary>Adds the first name that keeps an expression from being constant, so the error says what to fix.</summary>
+    string NotConstantMessage(string message, Expr e)
+    {
+        string? culprit = FindNonConstantName(e);
+        return culprit == null ? message : $"{message}: '{culprit}' is not a known constant";
+    }
+
+    string? FindNonConstantName(Expr e) => e switch
+    {
+        NameExpr n => TryConstName(n.Name, out _) ? null : n.Name,
+        UnaryExpr u => FindNonConstantName(u.Operand),
+        BinaryExpr b => FindNonConstantName(b.Left) ?? FindNonConstantName(b.Right),
+        TernaryExpr t => FindNonConstantName(t.Condition) ?? FindNonConstantName(t.WhenTrue) ?? FindNonConstantName(t.WhenFalse),
+        CallExpr c => c.Callee + "(...)",
+        IndexExpr ix => FindNonConstantName(ix.Target),
+        _ => null,
+    };
 
     /// <summary>Folds a constant expression, or returns null without reporting when it is not constant.</summary>
     int? EvalConst(Expr e)

@@ -65,6 +65,12 @@ public static class Identifiers
         };
 
         for (int i = 1; i <= 32; i++) d[$"BITMASK_{i}"] = unchecked(1 << (i - 1));
+
+        // ASCII and OLED glyph codes, as published in the guide's constants reference
+        for (int i = 0; i <= 9; i++) d[$"ASCII_DIGIT{i}"] = '0' + i;
+        for (char c = 'A'; c <= 'Z'; c++) { d[$"ASCII_UPPER_{c}"] = c; d[$"ASCII_LOWER_{c}"] = char.ToLowerInvariant(c); }
+        foreach (var (name, value) in new (string, int)[] { ("SPACE", 32), ("EXCLAMATION", 33), ("DOUBLE_QUOTE", 34), ("QUOTE", 34), ("POUND", 35), ("DOLLAR", 36), ("PERCENT", 37), ("AMPERSAND", 38), ("AND", 38), ("SINGLE_QUOTE", 39), ("APOSTROPHE", 39), ("LEFT_PARENTHESIS", 40), ("OPEN_PARENTHESIS", 40), ("RIGHT_PARENTHESIS", 41), ("CLOSE_PARENTHESIS", 41), ("ASTERISK", 42), ("PLUS", 43), ("COMMA", 44), ("MINUS", 45), ("PERIOD", 46), ("SLASH", 47), ("COLON", 58), ("SEMICOLON", 59), ("LESS_THAN", 60), ("EQUAL", 61), ("GREATER_THAN", 62), ("QUESTION", 63), ("AT", 64), ("LEFT_BRACKET", 91), ("LEFT_SQUARE_BRACKET", 91), ("OPEN_SQUARE_BRACKET", 91), ("OPEN_BRACKET", 91), ("BACKSLASH", 92), ("RIGHT_BRACKET", 93), ("RIGHT_SQUARE_BRACKET", 93), ("CLOSE_BRACKET", 93), ("CARAT", 94), ("UNDERSCORE", 95), ("GRAVE", 96), ("BACK_QUOTE", 96), ("LEFT_BRACE", 123), ("OPEN_BRACE", 123), ("LEFT_CURLY_BRACE", 123), ("OPEN_CURLY_BRACE", 123), ("LEFT_CURLY_BRACKET", 123), ("VERTICAL_BAR", 124), ("BAR", 124), ("PIPE", 124), ("RIGHT_BRACE", 125), ("CLOSE_BRACE", 125), ("RIGHT_CURLY_BRACE", 125), ("CLOSE_CURLY_BRACE", 125), ("RIGHT_CURLY_BRACKET", 125), ("TILDE", 126), ("PS_CROSS", 127), ("PS_CIRCLE", 128), ("PS_SQUARE", 129), ("PS_TRIANGLE", 130), ("DPAD_UP", 131), ("DPAD_DOWN", 132), ("DPAD_LEFT", 133), ("DPAD_RIGHT", 134), ("XB_VIEW", 135), ("XB_MENU", 136) })
+            d["ASCII_" + name] = value;
         for (int i = 1; i <= 64; i++) d[$"SPVAR_{i}"] = i; // UNVERIFIED
         for (int i = 0; i < TraceCount; i++) d[$"TRACE_{i + 1}"] = TRACE_1 + i;
 

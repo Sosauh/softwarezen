@@ -67,6 +67,7 @@ public sealed class Machine
     readonly int[] _pvar = new int[65];
     readonly bool[] _pvarSet = new bool[65];
     readonly short[] _bvar = new short[1024];
+    int _persistVersion;
 
     readonly int[] _sin = new int[360];
     uint _rng;
@@ -206,6 +207,44 @@ public sealed class Machine
             _deviceRemapCount++;
             _isDeviceRemapTarget[_deviceRemap[i]] = true;
         }
+    }
+
+    /// <summary>Changes whenever set_pvar or set_bvar changes a stored value; hosts save when it moves.</summary>
+    public int PersistVersion => _persistVersion;
+
+    static ReadOnlySpan<byte> PersistMagic => "GPV1"u8;
+    const int PersistSize = 4 + 64 * 5 + 1024 * 2;
+
+    /// <summary>The script's persistent memory (pvars and bvars), the part a Zen keeps across power cycles.</summary>
+    public byte[] SavePersistent()
+    {
+        var data = new byte[PersistSize];
+        PersistMagic.CopyTo(data);
+        int o = 4;
+        for (int n = 1; n <= 64; n++, o += 5)
+        {
+            data[o] = _pvarSet[n] ? (byte)1 : (byte)0;
+            System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(data.AsSpan(o + 1), _pvar[n]);
+        }
+        for (int i = 0; i < 1024; i++, o += 2)
+            System.Buffers.Binary.BinaryPrimitives.WriteInt16LittleEndian(data.AsSpan(o), _bvar[i]);
+        return data;
+    }
+
+    /// <summary>Restores memory saved by <see cref="SavePersistent"/>; call before the first cycle. Returns false (and changes nothing) for unrecognised data.</summary>
+    public bool LoadPersistent(ReadOnlySpan<byte> data)
+    {
+        if (data.Length != PersistSize || !data[..4].SequenceEqual(PersistMagic))
+            return false;
+        int o = 4;
+        for (int n = 1; n <= 64; n++, o += 5)
+        {
+            _pvarSet[n] = data[o] != 0;
+            _pvar[n] = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(data[(o + 1)..]);
+        }
+        for (int i = 0; i < 1024; i++, o += 2)
+            _bvar[i] = System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(data[o..]);
+        return true;
     }
 
     /// <summary>SPVAR_1..SPVAR_64 are -32768..-32705 (cronus.support memory constants); returns 1..64, or -1.</summary>
@@ -713,11 +752,13 @@ public sealed class Machine
             case Bi.set_pvar:
             {
                 int n = PvarIndex(A0);
-                if ((uint)n < 65) { _pvar[n] = A1; _pvarSet[n] = true; }
+                if ((uint)n < 65 && (!_pvarSet[n] || _pvar[n] != A1)) { _pvar[n] = A1; _pvarSet[n] = true; _persistVersion++; }
                 break;
             }
             case Bi.get_bvar: Push((uint)A0 < 1024 ? _bvar[A0] : 0); break;
-            case Bi.set_bvar: if ((uint)A0 < 1024) _bvar[A0] = unchecked((short)A1); break;
+            case Bi.set_bvar:
+                if ((uint)A0 < 1024 && _bvar[A0] != unchecked((short)A1)) { _bvar[A0] = unchecked((short)A1); _persistVersion++; }
+                break;
             case Bi.save_eeprom: break;
 
             case Bi.get_battery: Push(10); break;

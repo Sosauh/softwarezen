@@ -74,6 +74,37 @@ public class BuiltinTests
     }
 
     [Fact]
+    public void PersistentMemorySurvivesANewMachine()
+    {
+        const string src = "int v; init { v = get_pvar(SPVAR_3, 0, 50, 10); } main { if (event_press(PS4_UP)) { v++; set_pvar(SPVAR_3, v); set_bvar(5, v * 2); } set_val(TRACE_1, v); set_val(TRACE_2, get_bvar(5)); }";
+        var first = new Vm.Machine(Build(src));
+        first.RunCycle();
+        Assert.Equal(10, first.Trace(1));
+        int before = first.PersistVersion;
+        first.Input[Runtime.Identifiers.UP] = 100;
+        first.RunCycle();
+        Assert.Equal(11, first.Trace(1));
+        Assert.NotEqual(before, first.PersistVersion);
+
+        var second = new Vm.Machine(Build(src));
+        Assert.True(second.LoadPersistent(first.SavePersistent()));
+        second.RunCycle();
+        Assert.Equal(11, second.Trace(1));
+        Assert.Equal(22, second.Trace(2));
+    }
+
+    [Fact]
+    public void PersistVersionIgnoresUnchangedWritesAndBadData()
+    {
+        var m = new Vm.Machine(Build("main { set_pvar(SPVAR_1, 5); set_bvar(0, 0); }"));
+        m.RunCycle();
+        int v = m.PersistVersion;
+        m.RunCycle();
+        Assert.Equal(v, m.PersistVersion);
+        Assert.False(m.LoadPersistent(new byte[] { 1, 2, 3 }));
+    }
+
+    [Fact]
     public void RumbleOverrideAndBlock()
     {
         var m = new Vm.Machine(Build("main { if (get_ival(PS4_CROSS)) set_rumble(RUMBLE_A, 80); if (get_ival(PS4_CIRCLE)) block_rumble(); }"));

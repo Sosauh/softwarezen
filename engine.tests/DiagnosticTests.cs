@@ -54,3 +54,14 @@ public class DiagnosticTests
         Assert.Contains(r.Diagnostics, d => d.Code == "GZ1008");
     }
 }
+
+public class ReplaceableBuiltinTests
+{
+    [Fact]
+    public void ScriptsCanDefineTheirOwnSinAndCos()
+    {
+        var m = Harness.Run("function sin(a) { return 7; } function cos(a) { return a + 1; } main { set_val(TRACE_1, sin(30)); set_val(TRACE_2, cos(4)); }");
+        Assert.Equal(7, m.Trace(1));
+        Assert.Equal(5, m.Trace(2));
+    }
+}

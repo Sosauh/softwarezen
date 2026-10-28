@@ -168,6 +168,14 @@ sealed class Emitter
         return true;
     }
 
+    // Maths helpers added to the Zen later: older scripts define their own, and theirs wins.
+    static readonly HashSet<string> ReplaceableBuiltins = new()
+    {
+        "abs", "inv", "pow", "isqrt", "clamp", "min", "max",
+        "sin", "cos", "tan", "asin", "acos", "atan2",
+        "set_bit", "clear_bit", "test_bit", "set_bits", "get_bits",
+    };
+
     void CollectNames()
     {
         foreach (var d in _unit.Decls)
@@ -178,12 +186,14 @@ sealed class Emitter
                     if (CheckNewDataName(def.Name, def.Span)) _defines[def.Name] = def;
                     break;
                 case FunctionDecl fn:
-                    if (Builtins.ByName.ContainsKey(fn.Name) || Builtins.ComboOps.ContainsKey(fn.Name))
+                    if (Builtins.ComboOps.ContainsKey(fn.Name) || (Builtins.ByName.ContainsKey(fn.Name) && !ReplaceableBuiltins.Contains(fn.Name)))
                         Error("GZ4001", $"'{fn.Name}' is a built-in function name", fn.Span);
                     else if (!_funcs.TryAdd(fn.Name, new FuncInfo { Decl = fn }))
                         Error("GZ4000", $"function '{fn.Name}' is already declared", fn.Span);
                     else
                     {
+                        if (ReplaceableBuiltins.Contains(fn.Name))
+                            Warn("GZ9010", $"function '{fn.Name}' replaces the built-in {fn.Name}", fn.Span);
                         var seen = new HashSet<string>();
                         foreach (var p in fn.Parameters)
                             if (!seen.Add(p)) Error("GZ4000", $"duplicate parameter '{p}'", fn.Span);

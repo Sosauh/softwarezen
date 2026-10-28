@@ -157,3 +157,21 @@ public class SettingsMenuScriptTests
         Assert.Equal(100, m.Output[DOWN]);
     }
 }
+
+public class OledGlyphNameTests
+{
+    [Theory]
+    [InlineData("OLED_CROSS", "ASCII_PS_CROSS")]
+    [InlineData("OLED_TRIANGLE", "ASCII_PS_TRIANGLE")]
+    [InlineData("OLED_UP", "ASCII_DPAD_UP")]
+    [InlineData("OLED_RIGHT", "ASCII_DPAD_RIGHT")]
+    public void OledGlyphNamesMatchTheAsciiGlyphs(string oled, string ascii) =>
+        Assert.Equal(Harness.Eval(ascii), Harness.Eval(oled));
+
+    [Fact]
+    public void GlyphsCanBeDrawnWithPutc()
+    {
+        var m = Harness.Run("init { putc_oled(1, OLED_CROSS); puts_oled(0, 0, OLED_FONT_SMALL, 1, OLED_WHITE); } main { }");
+        Assert.True(m.Oled.Lit(1, 1)); // the cross glyph's top-left corner
+    }
+}

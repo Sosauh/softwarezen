@@ -98,7 +98,7 @@ public class MoreBuiltinTests
         m.Input[Runtime.Identifiers.CROSS] = 100;
         m.RunCycle();
         Assert.Equal(100, m.Output[Runtime.Identifiers.CIRCLE]);
-        Assert.Equal(0, m.Output[Runtime.Identifiers.CROSS]);
+        Assert.Equal(100, m.Output[Runtime.Identifiers.CROSS]); // the source keeps its own output (CronusMAX manual)
     }
 
     [Fact]

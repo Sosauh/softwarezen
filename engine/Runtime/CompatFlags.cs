@@ -29,8 +29,12 @@ public sealed record CompatFlags
     public RemapLayer LvalLayer { get; init; } = RemapLayer.PreRemap;
     /// <summary>Probe group 4. The VM interval with vm_tctrl(0), in ms.</summary>
     public int BaseCycleMs { get; init; } = 10;
-    /// <summary>Probe group 4. Whether a vm_tctrl offset stays until changed or applies to one cycle.</summary>
-    public bool VmTctrlPersists { get; init; } = true;
+    /// <summary>Probe group 4. The Zen and CronusMAX docs say vm_tctrl applies "for the next iteration", which is why
+    /// scripts call it every cycle; persistence is unproven, so the default is one cycle.</summary>
+    public bool VmTctrlPersists { get; init; } = false;
+    /// <summary>Probe group 6. block() stops the physical input from passing through; a set_val from the script or a
+    /// combo still reaches the output (inferred from the CronusMAX manual's block example).</summary>
+    public bool BlockOnlyPhysical { get; init; } = true;
     /// <summary>Probe group 5.</summary>
     public ComboStepMode ComboStepMode { get; init; } = ComboStepMode.Reexecute;
     /// <summary>Probe group 6. get_brtime before the first release since load.</summary>

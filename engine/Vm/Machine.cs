@@ -32,6 +32,7 @@ public sealed class Machine
     readonly bool[] _press = new bool[SlotCount], _release = new bool[SlotCount];
     readonly int[] _ptime = new int[SlotCount], _brtime = new int[SlotCount];
     readonly int[] _blockLeft = new int[SlotCount];
+    readonly bool[] _written = new bool[SlotCount]; // set_val reached this slot this cycle (script or combo)
     readonly bool[] _isRemapTarget = new bool[SlotCount];
     // set_remapper: a device-level remap the script can change at run time (identity until changed)
     readonly int[] _deviceRemap = new int[SlotCount];
@@ -138,6 +139,7 @@ public sealed class Machine
             _ptime[i] = now != before ? 0 : Sat(_ptime[i] + _elapsedMs);
             _brtime[i] = _release[i] ? 0 : Sat(_brtime[i] + _elapsedMs);
             _work[i] = _input[i];
+            _written[i] = false;
         }
 
         if (!_initDone)
@@ -165,7 +167,7 @@ public sealed class Machine
         for (int i = 0; i < SlotCount; i++)
         {
             if (_blockLeft[i] <= 0) continue;
-            _out[i] = 0;
+            if (!_f.BlockOnlyPhysical || !_written[i]) _out[i] = 0;
             _blockLeft[i] -= _cycleMs;
         }
         if (_f.LvalLayer == RemapLayer.PreRemap) Array.Copy(_out, _lastOut, SlotCount);
@@ -176,11 +178,7 @@ public sealed class Machine
             foreach (var r in _s.Remaps)
             {
                 if (r.Target < 0) _out[r.Source] = 0;
-                else
-                {
-                    _out[r.Target] = _remapScratch[r.Source];
-                    if (!_isRemapTarget[r.Source]) _out[r.Source] = 0;
-                }
+                else _out[r.Target] = _remapScratch[r.Source]; // the source keeps its own output unless remapped onto
             }
         }
         if (_deviceRemapCount > 0)
@@ -191,7 +189,6 @@ public sealed class Machine
                 int to = _deviceRemap[i];
                 if (to == i) continue;
                 _out[to] = _remapScratch[i];
-                if (!_isDeviceRemapTarget[i]) _out[i] = 0;
             }
         }
         if (_f.LvalLayer == RemapLayer.PostRemap) Array.Copy(_out, _lastOut, SlotCount);
@@ -210,6 +207,9 @@ public sealed class Machine
             _isDeviceRemapTarget[_deviceRemap[i]] = true;
         }
     }
+
+    /// <summary>SPVAR_1..SPVAR_64 are -32768..-32705 (cronus.support memory constants); returns 1..64, or -1.</summary>
+    static int PvarIndex(int spvar) => spvar is >= -32768 and <= -32705 ? spvar + 32769 : -1;
 
     static int AdtSide(int trigger) => trigger == R2 ? 0 : trigger == L2 ? 1 : -1;
 
@@ -487,7 +487,9 @@ public sealed class Machine
     void SetVal(int id, int v)
     {
         if (!ValidSlot(id)) return;
+        if (id >= TRACE_1 + 3 && id < TRACE_1 + TraceCount) v = unchecked((short)v); // TRACE_4..6 hold 16 bits
         _work[id] = v;
+        _written[id] = true;
         int c = _recordingCombo;
         if (c < 0) return;
         for (int i = 0; i < _holdCount[c]; i++)
@@ -581,14 +583,15 @@ public sealed class Machine
                 {
                     double m = Math.Sqrt((double)x * x + (double)y * y);
                     if (m == 0) break;
-                    double target = A3 + m * (100 - A3) / 100.0;
+                    double target = m + A3; // pushed outward by the radius, clamped below
                     _work[A0] = ClampFor(A0, (int)Math.Round(x * target / m));
                     _work[A1] = ClampFor(A1, (int)Math.Round(y * target / m));
                 }
                 else
                 {
-                    if (x != 0) _work[A0] = ClampFor(A0, Math.Sign(x) * (A2 + Math.Abs(x) * (100 - A2) / 100));
-                    if (y != 0) _work[A1] = ClampFor(A1, Math.Sign(y) * (A3 + Math.Abs(y) * (100 - A3) / 100));
+                    // nonzero input is pushed outward by the deadzone; zero stays zero (CronusMAX/Zen docs)
+                    if (x != 0) _work[A0] = ClampFor(A0, x + Math.Sign(x) * A2);
+                    if (y != 0) _work[A1] = ClampFor(A1, y + Math.Sign(y) * A3);
                 }
                 break;
             }
@@ -671,7 +674,7 @@ public sealed class Machine
             case Bi.block_rumble: _rumbleBlocked = true; break;
             case Bi.reset_rumble: _rumbleBlocked = false; Array.Clear(_rumbleOverridden); break;
 
-            case Bi.get_ps4_lbar: Push((uint)A0 < 3 ? LightbarOut(A0) : 0); break;
+            case Bi.get_ps4_lbar: Push(A0 switch { 0 => LightbarOut(2), 1 => LightbarOut(0), 2 => LightbarOut(1), _ => 0 }); break;
             case Bi.set_ps4_lbar: // reference order (red, green, blue); a changelog says BRG (probe pending)
             case Bi.set_rgb:
                 _lightbarOverride[0] = Math.Clamp(A0, 0, 255);
@@ -702,12 +705,17 @@ public sealed class Machine
 
             case Bi.get_pvar:
             {
-                int n = A0;
+                int n = PvarIndex(A0);
                 bool ok = (uint)n < 65 && _pvarSet[n] && _pvar[n] >= A1 && _pvar[n] <= A2;
                 Push(ok ? _pvar[n] : A3);
                 break;
             }
-            case Bi.set_pvar: if ((uint)A0 < 65) { _pvar[A0] = A1; _pvarSet[A0] = true; } break;
+            case Bi.set_pvar:
+            {
+                int n = PvarIndex(A0);
+                if ((uint)n < 65) { _pvar[n] = A1; _pvarSet[n] = true; }
+                break;
+            }
             case Bi.get_bvar: Push((uint)A0 < 1024 ? _bvar[A0] : 0); break;
             case Bi.set_bvar: if ((uint)A0 < 1024) _bvar[A0] = unchecked((short)A1); break;
             case Bi.save_eeprom: break;

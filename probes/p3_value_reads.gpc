@@ -3,12 +3,12 @@
 //   TRACE_2  get_ival(PS4_RX) after that set_val                       (guide: physical, about 0)
 //   TRACE_3  get_lval(PS4_RX)  previous cycle's final value             (guide: 40)
 //   TRACE_4  get_lval(PS4_RY)  where only a combo writes RY = 55       (55 if combo writes count)
-//   TRACE_5  get_lval(PS4_LY)  where main writes LY = 30 and it is remapped away
-//                              (30 if get_lval is before remap; 0 if after)
+//   TRACE_5  get_lval(PS4_LY)  where main writes LY = 30 and LY is unmapped
+//                              (30 if get_lval is before remap/unmap; 0 if after)
 //   TRACE_6  get_val(PS4_RY) in main, before the combo runs this cycle (0 if combos run after main)
-// Note: this probe moves your right stick and left stick outputs while it runs.
+// Note: this probe moves your right stick output and silences left-stick Y while it runs.
 
-remap PS4_LY -> PS4_LX;
+unmap PS4_LY;
 
 main {
     set_val(PS4_RX, 40);

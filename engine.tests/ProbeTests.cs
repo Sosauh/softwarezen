@@ -12,7 +12,7 @@ public class ProbeTests
     [Theory]
     [InlineData("p1a_divide_modulo.gpc", 0, 0, -3, -1, -3, 1)]
     [InlineData("p1b_overflow_literals.gpc", int.MinValue, int.MinValue, int.MinValue, 3, 2, 1)]
-    [InlineData("p1c_shifts.gpc", -4, -1, int.MinValue, 1, 2, int.MinValue)]
+    [InlineData("p1c_shifts.gpc", -4, -1, int.MinValue, 1, 2, -32768)]
     [InlineData("p2a_language_rules.gpc", 5, 7, 0, 0, 12, 0)]
     [InlineData("p2b_aliasing.gpc", 77, 88, 50, 25, 0, 0)]
     [InlineData("p3_value_reads.gpc", 40, 0, 40, 55, 30, 0)]

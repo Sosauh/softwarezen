@@ -4,7 +4,8 @@
 //   TRACE_3  1 << 31    (gives -2147483648)
 //   TRACE_4  1 << 32    (count masked to 0 gives 1; else 0)
 //   TRACE_5  5 >> 33    (count masked to 1 gives 2; else 0)
-//   TRACE_6  1 << -1    (guide: undocumented)
+//   TRACE_6  (1 << -1) >> 16  (count masked to 31 gives -32768; 0 if negative counts give 0)
+// TRACE_4..6 are 16-bit on the Zen, so TRACE_6 is shifted down to fit.
 
 int neg16, neg1, one, five, s2, s31, s32, s33, sneg;
 
@@ -19,5 +20,5 @@ main {
     set_val(TRACE_3, one << s31);
     set_val(TRACE_4, one << s32);
     set_val(TRACE_5, five >> s33);
-    set_val(TRACE_6, one << sneg);
+    set_val(TRACE_6, (one << sneg) >> 16);
 }

@@ -271,3 +271,70 @@ public class CycleTests
         Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
     }
 }
+
+public class ResearchedBehaviourTests
+{
+    [Fact]
+    public void DeadzonePushesNonzeroInputOutward()
+    {
+        var m = new Machine(Build("main { deadzone(PS4_LX, PS4_LY, 10, 10); }"));
+        m.Input[LX] = 5; m.Input[LY] = 0;
+        m.RunCycle();
+        Assert.Equal(15, m.Output[LX]);
+        Assert.Equal(0, m.Output[LY]);   // zero stays zero
+        m.Input[LX] = 95;
+        m.RunCycle();
+        Assert.Equal(100, m.Output[LX]); // clamped
+    }
+
+    [Fact]
+    public void VmTctrlAppliesToTheNextCycleOnly()
+    {
+        var m = new Machine(Build("int t; main { t++; if (t == 1) vm_tctrl(-5); }"));
+        Assert.Equal(5, m.RunCycle());
+        Assert.Equal(10, m.RunCycle());
+    }
+
+    [Fact]
+    public void BlockStopsThePhysicalButtonButNotScriptWrites()
+    {
+        var m = new Machine(Build("int t; main { t++; if (t == 1) block(PS4_CROSS, 50); if (t == 2) set_val(PS4_CROSS, 100); }"));
+        m.Input[CROSS] = 100;
+        m.RunCycle();
+        Assert.Equal(0, m.Output[CROSS]);   // physical press blocked
+        m.RunCycle();
+        Assert.Equal(100, m.Output[CROSS]); // the script's own write gets through
+    }
+
+    [Fact]
+    public void RemapCopiesToTheTargetAndKeepsTheSource()
+    {
+        var m = new Machine(Build("remap PS4_CROSS -> PS4_SQUARE; remap PS4_CROSS -> PS4_TRIANGLE; main { }"));
+        m.Input[CROSS] = 100;
+        m.Input[SQUARE] = 100; // SQUARE's own input no longer reaches the output
+        m.RunCycle();
+        Assert.Equal(100, m.Output[CROSS]);
+        Assert.Equal(100, m.Output[SQUARE]);
+        Assert.Equal(100, m.Output[TRIANGLE]);
+        m.Input[CROSS] = 0;
+        m.RunCycle();
+        Assert.Equal(0, m.Output[SQUARE]);
+    }
+
+    [Fact]
+    public void TracesFourToSixHoldSixteenBits()
+    {
+        var m = Run("main { set_val(TRACE_1, 100000); set_val(TRACE_4, 100000); }");
+        Assert.Equal(100000, m.Trace(1));
+        Assert.Equal(unchecked((short)100000), m.Trace(4));
+    }
+
+    [Fact]
+    public void SpvarConstantsAddressSlots()
+    {
+        Assert.Equal(-32768, Eval("SPVAR_1"));
+        Assert.Equal(-32705, Eval("SPVAR_64"));
+        var m = Run("int a; main { set_pvar(SPVAR_64, 42); a = get_pvar(SPVAR_64, 0, 100, 1); set_val(TRACE_1, a); }");
+        Assert.Equal(42, m.Trace(1));
+    }
+}

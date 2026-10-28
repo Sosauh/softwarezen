@@ -53,17 +53,17 @@ public static class Identifiers
             ["BUTTON_MIN"] = 0, ["BUTTON_MAX"] = TRACE_1 + TraceCount - 1, ["BUTTON_MAX_EXTENDED"] = SlotCount - 1,
             ["VALUE_MIN"] = -100, ["VALUE_MAX"] = 100,
             ["TIME_MAX"] = 32767,
-            ["NOT_USE"] = 101, ["DZ_CIRCLE"] = 101,
+            ["NOT_USE"] = 0, ["DZ_CIRCLE"] = 101, ["ALL_REMAPS"] = -1, // cronus.support misc constants
             ["REMAP_NULL"] = -1,
             ["RUMBLE_A"] = RUMBLE_A, ["RUMBLE_B"] = RUMBLE_B, ["RUMBLE_RT"] = RUMBLE_RT, ["RUMBLE_LT"] = RUMBLE_LT,
             ["RUMBLE_MIN"] = 0, ["RUMBLE_MAX"] = RumbleCount - 1,
-            ["PS4_RED"] = 0, ["PS4_GREEN"] = 1, ["PS4_BLUE"] = 2,
-            ["LED_1"] = 0, ["LED_2"] = 1, ["LED_3"] = 2, ["LED_4"] = 3,
+            ["PS4_BLUE"] = 0, ["PS4_RED"] = 1, ["PS4_GREEN"] = 2, // cronus.support LED constants
+            ["LED_NONE"] = -1, ["LED_1"] = 0, ["LED_2"] = 1, ["LED_3"] = 2, ["LED_4"] = 3,
             ["LED_ID_MIN"] = 0, ["LED_ID_MAX"] = 3, ["LED_MIN"] = 0, ["LED_MAX"] = 3,
             ["LEDX_MIN"] = 0, ["LEDX_MAX"] = 255,
-            ["PIO_NONE"] = 0, ["PIO_PS3"] = 1, ["PIO_XB360"] = 2, ["PIO_WII"] = 3, ["PIO_PS4"] = 4,
+            ["PIO_NONE"] = 0, ["PIO_AUTO"] = 0, ["PIO_PS3"] = 1, ["PIO_XB360"] = 2, ["PIO_WII"] = 3, ["PIO_PS4"] = 4,
             ["PIO_XB1"] = 5, ["PIO_SWITCH"] = 6, ["PIO_PS5"] = 7, ["PIO_XBSX"] = 8,
-            ["PS4T_P1"] = 0, ["PS4T_P1X"] = 1, ["PS4T_P1Y"] = 2, ["PS4T_P2"] = 3, ["PS4T_P2X"] = 4, ["PS4T_P2Y"] = 5,
+            ["PS4T_P1"] = 1, ["PS4T_P1X"] = 2, ["PS4T_P1Y"] = 3, ["PS4T_P2"] = 16, ["PS4T_P2X"] = 32, ["PS4T_P2Y"] = 48,
         };
 
         for (int i = 1; i <= 32; i++) d[$"BITMASK_{i}"] = unchecked(1 << (i - 1));
@@ -110,7 +110,7 @@ public static class Identifiers
         foreach (var (name, glyph) in new[] { ("CROSS", 127), ("CIRCLE", 128), ("SQUARE", 129), ("TRIANGLE", 130),
                      ("UP", 131), ("DOWN", 132), ("LEFT", 133), ("RIGHT", 134), ("XB_VIEW", 135), ("XB_MENU", 136) })
             d["OLED_" + name] = glyph;
-        for (int i = 1; i <= 64; i++) d[$"SPVAR_{i}"] = i; // UNVERIFIED
+        for (int i = 1; i <= 64; i++) d[$"SPVAR_{i}"] = -32768 + (i - 1); // cronus.support memory constants
         for (int i = 0; i < TraceCount; i++) d[$"TRACE_{i + 1}"] = TRACE_1 + i;
 
         void Platform(string p, params (string name, int slot)[] specific)

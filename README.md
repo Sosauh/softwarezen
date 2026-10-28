@@ -58,7 +58,7 @@ engine.tests/    doc-derived vectors, combo timing, diagnostics, determinism, ze
 hostwin/         DS5 USB HID, ViGEm DS4 sink, deadline scheduler, HidHide wrapper, engine bridge
 hostwin.tests/   report codec, drift and bridge tests
 runner/          gpcrun console app (the headless engine process)
-scripts/         ready-to-use scripts (anti_drift.gpc, turbo_cross.gpc)
+scripts/         ready-to-use scripts (anti_drift.gpc, turbo_cross.gpc, settings_menu.gpc)
 probes/          Zen probe scripts and the results table
 ```
 
@@ -68,7 +68,7 @@ Supported: `define`, `enum`, `data()`, typed `const` arrays (1D/2D) and strings,
 with slot aliasing, multiple `init`/`main`, `function`, `combo`/`fcombo` with `wait`/`call`, `if`/`else`,
 `while`, `do`/`while`, `for`, `switch`, `?:`, `^^`, all compound assignments, `sizeof`, `addr`,
 `remap`/`unmap`, and about 90 built-ins: inputs and edges, timing, combos, math, bits, trig, data readers,
-rumble, lightbar, polar, SPVAR/BVAR in memory. OLED calls compile and do nothing.
+rumble, lightbar, polar, SPVAR/BVAR in memory, and the 128x64 OLED (`gpcrun sim` prints it as text).
 
 Every behaviour the guide leaves unclear is a flag in `engine/Runtime/CompatFlags.cs` with a guessed default,
 until the probes in `probes/` measure it on a real Zen. Known gaps:
@@ -77,6 +77,7 @@ until the probes in `probes/` measure it on a real Zen. Known gaps:
   use names are fine. Scripts that hard-code numbers depend on the table in `engine/Runtime/Identifiers.cs`.
 - **`sensitivity`, `deadzone`, `stickize`, polar** use reasonable curves, not measured ones.
 - **`remap` semantics** (what happens to the source) are a guess.
-- **Out of v1:** Bluetooth, gyro, touchpad, adaptive triggers, haptics, OLED, mouse and keyboard, `.gbc` bytecode.
+- **OLED font sizes** other than LARGE (16x26) are a best guess; `probes/p0_identifiers.gpc` helps check them.
+- **Out of v1:** Bluetooth, gyro, touchpad, adaptive triggers, haptics, mouse and keyboard, `.gbc` bytecode.
 
 Not affiliated with Cronus or Collective Minds.

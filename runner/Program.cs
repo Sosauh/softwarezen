@@ -225,7 +225,27 @@ static int Sim(string path, int cycles)
         }
     }
     if (m.FaultCount > 0) Console.WriteLine($"faults: {m.FaultCount} (last: {m.LastFault})");
+    PrintOled(m.Oled);
     return 0;
+}
+
+/// <summary>Prints the OLED as text, two pixel rows per line, if the script drew anything.</summary>
+static void PrintOled(Gpc.Engine.Runtime.Oled oled)
+{
+    if (oled.Version == 0) return;
+    Console.WriteLine("OLED:");
+    Console.WriteLine("+" + new string('-', Gpc.Engine.Runtime.Oled.Width) + "+");
+    for (int y = 0; y < Gpc.Engine.Runtime.Oled.Height; y += 2)
+    {
+        var line = new char[Gpc.Engine.Runtime.Oled.Width];
+        for (int x = 0; x < line.Length; x++)
+            line[x] = (oled.Lit(x, y), oled.Lit(x, y + 1)) switch
+            {
+                (true, true) => '█', (true, false) => '▀', (false, true) => '▄', _ => ' ',
+            };
+        Console.WriteLine("|" + new string(line) + "|");
+    }
+    Console.WriteLine("+" + new string('-', Gpc.Engine.Runtime.Oled.Width) + "+");
 }
 
 static int RunScript(string path, bool xbox, GameLockState lockState)

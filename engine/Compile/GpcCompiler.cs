@@ -61,6 +61,8 @@ sealed class Emitter
     readonly Dictionary<string, int> _comboIds = new();
     readonly List<ComboDecl> _combos = new();
     readonly List<byte> _data = new();
+    /// <summary>Strings and images, addressed by byte offset (what addr() and print() use).</summary>
+    readonly List<byte> _strings = new();
     readonly List<Remap> _remaps = new();
     int _slots;
 
@@ -112,6 +114,7 @@ sealed class Emitter
             GlobalInit = _globalInit.ToArray(),
             Consts = _consts.ToArray(),
             Data = _data.ToArray(),
+            Strings = _strings.ToArray(),
             Remaps = _remaps.ToArray(),
             ComboSteps = steps,
             ComboNames = _combos.Select(c => c.Name).ToArray(),
@@ -273,7 +276,29 @@ sealed class Emitter
         if (c.Init is ConstString s)
         {
             if (c.ElementType != "string") Error("GZ2100", "only const string takes a string initializer", c.Span);
-            arr = new ConstArray(c.Name, "string", 0, 1, s.Value.Length, s.Value.Select(ch => (int)(byte)ch).Append(0).ToArray());
+            if (c.Dimensions != 0) Error("GZ2100", "a string array needs '{ \"a\", \"b\" }'", c.Span);
+            arr = new ConstArray(c.Name, "string", 0, 1, s.Value.Length, new[] { AddString(s.Value) }) { HoldsAddresses = true };
+        }
+        else if (c.ElementType == "string" && c.Init is ConstList strings)
+        {
+            // each element is the address of its string, which is what print() takes
+            var addrs = new List<int>();
+            foreach (var item in strings.Items)
+            {
+                if (item is ConstString str) addrs.Add(AddString(str.Value));
+                else Error("GZ2100", "const string arrays hold string literals", item.Span);
+            }
+            if (addrs.Count == 0) Error("GZ4017", "const arrays cannot be empty", c.Span);
+            arr = new ConstArray(c.Name, "string", 1, 1, addrs.Count, addrs.ToArray()) { HoldsAddresses = true };
+        }
+        else if (c.ElementType == "image" && c.Init is ConstList image && c.Dimensions == 0)
+        {
+            var bytes = image.Items.Select(Value).ToArray();
+            if (bytes.Length < 3 || bytes.Length - 2 != (bytes[0] * bytes[1] + 7) / 8)
+                Error("GZ5116", "an image needs width, height and exactly ceil(width*height/8) pixel bytes", c.Span);
+            int at = _strings.Count;
+            _strings.AddRange(bytes.Select(b => (byte)b));
+            arr = new ConstArray(c.Name, "image", 0, 1, bytes.Length, new[] { at }) { HoldsAddresses = true };
         }
         else if (c.Init is ConstList list && c.Dimensions == 2)
         {
@@ -299,6 +324,14 @@ sealed class Emitter
         }
         _constIds[c.Name] = _consts.Count;
         _consts.Add(arr);
+    }
+
+    int AddString(string value)
+    {
+        int at = _strings.Count;
+        foreach (char ch in value) _strings.Add((byte)ch);
+        _strings.Add(0);
+        return at;
     }
 
     void CollectData()
@@ -411,7 +444,7 @@ sealed class Emitter
         switch (s.Operand)
         {
             case NameExpr n when _constIds.TryGetValue(n.Name, out int id):
-                return _consts[id].Length;
+                return _consts[id].ElementType == "string" && _consts[id].Dimensions == 0 ? _consts[id].Columns : _consts[id].Length;
             case NameExpr n when _globals.TryGetValue(n.Name, out var g):
                 return g.Size;
             case NameExpr n when _curFunc != null && _curFunc.Decl.Parameters.Contains(n.Name):
@@ -805,7 +838,8 @@ sealed class Emitter
             case AddrExpr ad:
                 if (!_constIds.TryGetValue(ad.Name, out int id))
                     Error("GZ5126", $"addr() needs a const item; '{ad.Name}' is not one", ad.Span);
-                Emit(Op.Push, id);
+                // strings and images: their byte address; other const arrays: their id
+                Emit(Op.Push, id < _consts.Count && _consts[id].HoldsAddresses ? _consts[id].Values[0] : id);
                 break;
             default:
                 Error("GZ2102", "unsupported expression", e.Span);
@@ -855,6 +889,11 @@ sealed class Emitter
         if (IsParam(n.Name, out int p)) { Emit(Op.LoadP, p); return; }
         if (_globals.TryGetValue(n.Name, out var g)) { Emit(Op.LoadG, g.Slot); return; }
         if (TryConstName(n.Name, out int v)) { Emit(Op.Push, v); return; }
+        if (_constIds.TryGetValue(n.Name, out int cid) && _consts[cid].HoldsAddresses && _consts[cid].Dimensions == 0)
+        {
+            Emit(Op.Push, _consts[cid].Values[0]); // a single string or image stands for its address
+            return;
+        }
         if (_constIds.ContainsKey(n.Name))
             Error("GZ4031", $"const array '{n.Name}' needs an index", n.Span);
         else if (_comboIds.ContainsKey(n.Name))
@@ -890,6 +929,14 @@ sealed class Emitter
                 {
                     Error("GZ4031", $"2D const array '{n.Name}' needs two indexes", ix.Span);
                     Emit(Op.Push, 0);
+                    return;
+                }
+                if (arr.HoldsAddresses && arr.Dimensions == 0)
+                {
+                    // TITLE[i]: the address of character i, so print(..., TITLE[0]) prints the whole string
+                    EmitExpr(ix.Index);
+                    Emit(Op.Push, arr.Values[0]);
+                    Emit(Op.Add);
                     return;
                 }
                 CheckConstIndex(ix.Index, arr.Length);
@@ -1096,8 +1143,8 @@ sealed class Emitter
             {
                 if (c.Args[i] is StringLit s)
                 {
-                    Error("GZ5106", "string literals cannot be passed directly; declare a const string and use addr()", s.Span);
-                    Emit(Op.Push, 0);
+                    // a literal passed as a whole argument becomes an unnamed const string (Zen Studio Live allows this)
+                    Emit(Op.Push, AddString(s.Value));
                 }
                 else EmitExpr(c.Args[i]);
             }

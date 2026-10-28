@@ -15,7 +15,7 @@ public enum Bi
     get_battery, get_controller, get_console, turn_off,
     set_polar, set_polar2, get_polar, get_ipolar,
     ps4_touchpad, ps4_set_touchpad, get_keyboard, get_modifiers,
-    oled_noop, oled_noop_value,
+    cls_oled, pixel_oled, line_oled, rect_oled, circle_oled, putc_oled, puts_oled, image_oled, print_oled,
 }
 
 /// <summary>How the compiler treats an argument.</summary>
@@ -81,11 +81,11 @@ public static class Builtins
             new("get_polar", Bi.get_polar, 2, true), new("get_ipolar", Bi.get_ipolar, 2, true),
             new("ps4_touchpad", Bi.ps4_touchpad, 1, true), new("ps4_set_touchpad", Bi.ps4_set_touchpad, 2, false),
             new("get_keyboard", Bi.get_keyboard, 1, true), new("get_modifiers", Bi.get_modifiers, 1, true),
-            // OLED has no PC counterpart in v1: accepted and ignored
-            new("cls_oled", Bi.oled_noop, 1, false), new("pixel_oled", Bi.oled_noop, 3, false), new("line_oled", Bi.oled_noop, 6, false),
-            new("rect_oled", Bi.oled_noop, 6, false), new("circle_oled", Bi.oled_noop, 5, false), new("putc_oled", Bi.oled_noop, 2, false),
-            new("puts_oled", Bi.oled_noop, 5, false), new("image_oled", Bi.oled_noop, 5, false), new("print", Bi.oled_noop, 5, false),
-            new("printf", Bi.oled_noop, 5, false),
+            // the virtual 128x64 OLED (Machine.Oled); hosts show it in a window
+            new("cls_oled", Bi.cls_oled, 1, false), new("pixel_oled", Bi.pixel_oled, 3, false), new("line_oled", Bi.line_oled, 6, false),
+            new("rect_oled", Bi.rect_oled, 6, false), new("circle_oled", Bi.circle_oled, 5, false), new("putc_oled", Bi.putc_oled, 2, false),
+            new("puts_oled", Bi.puts_oled, 5, false), new("image_oled", Bi.image_oled, 5, false), new("print", Bi.print_oled, 5, false),
+            new("printf", Bi.print_oled, 5, false),
         };
         return list.ToDictionary(b => b.Name);
     }

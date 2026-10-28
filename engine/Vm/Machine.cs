@@ -109,6 +109,12 @@ public sealed class Machine
 
     public int Trace(int n) => _out[TRACE_1 + n - 1];
 
+    /// <summary>The script's 128x64 screen.</summary>
+    public Oled Oled { get; } = new();
+
+    ReadOnlySpan<byte> StringAt(int address) =>
+        (uint)address < (uint)_s.Strings.Length ? _s.Strings.AsSpan(address) : ReadOnlySpan<byte>.Empty;
+
     // ================= cycle =================
 
     /// <summary>Runs one VM cycle and returns the interval in ms until the next one.</summary>
@@ -706,7 +712,15 @@ public sealed class Machine
             case Bi.ps4_set_touchpad: break;
             case Bi.get_keyboard: Push(0); break;
             case Bi.get_modifiers: Push(0); break;
-            case Bi.oled_noop: break;
+            case Bi.cls_oled: Oled.Clear(A0); break;
+            case Bi.pixel_oled: Oled.Pixel(A0, A1, A2); break;
+            case Bi.line_oled: Oled.Line(A0, A1, A2, A3, st[a + 4], st[a + 5]); break;
+            case Bi.rect_oled: Oled.Rect(A0, A1, A2, A3, st[a + 4] != 0, st[a + 5]); break;
+            case Bi.circle_oled: Oled.Circle(A0, A1, A2, A3 != 0, st[a + 4]); break;
+            case Bi.putc_oled: Oled.PutChar(A0, A1); break;
+            case Bi.puts_oled: Oled.PutBuffer(A0, A1, A2, A3, st[a + 4]); break;
+            case Bi.image_oled: Oled.Image(A0, A1, A2, A3 != 0, StringAt(st[a + 4])); break;
+            case Bi.print_oled: Oled.Text(A0, A1, A2, A3, StringAt(st[a + 4])); break;
             default: throw new InvalidOperationException($"unhandled builtin {id}");
         }
     }

@@ -13,6 +13,12 @@ firmware and Zen Studio version in the table.
 
 You can see what this engine answers without a Zen: `gpcrun sim probes/<file>.gpc 3`.
 
+## Probe 0: identifier numbers (start here)
+
+`p0_identifiers.gpc` prints the numbers behind names like `PS4_CROSS`, `TRACE_1` and `TIME_MAX` on the Zen's
+screen, 12 per page; press CROSS for the next of 3 pages. Photograph each page and send the photos. If it
+doesn't compile on the Zen, send the error instead: it means one of those names doesn't exist.
+
 ## Results
 
 Firmware / Zen Studio version: _fill in_

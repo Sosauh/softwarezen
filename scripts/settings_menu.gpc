@@ -1,0 +1,147 @@
+// settings_menu.gpc - turbo X plus anti-drift, with an on-screen settings menu.
+//
+// Open/close the menu: hold L2 and press OPTIONS.
+// In the menu: D-pad up/down picks a setting, left/right changes it.
+// While the menu is open the D-pad and OPTIONS don't reach the game.
+// Settings are kept with set_pvar when the menu closes.
+
+define ITEMS = 3;
+define ROW_H = 14;
+
+const string TITLE = "SETTINGS";
+const string HINT = "L2+OPTIONS: close"; // 17 chars x 7 px fits the 128 px width
+const string LABELS[] = { "Turbo X", "Speed /s", "Deadzone" };
+const string ON_TEXT = "ON";
+const string OFF_TEXT = "OFF";
+const string STATUS_ON = "Turbo ON";
+const string STATUS_OFF = "Turbo OFF";
+
+int menu_open, item;
+int turbo_on, speed, dz;
+int i, y, color, half_ms;
+int value, divisor, digit, started, len;
+int sx, sy, mag, scaled;
+
+init {
+    turbo_on = get_pvar(SPVAR_1, 0, 1, 1);
+    speed = get_pvar(SPVAR_2, 2, 20, 10);
+    dz = get_pvar(SPVAR_3, 0, 30, 8);
+    draw_status();
+}
+
+main {
+    if (get_ival(PS4_L2) && event_press(PS4_OPTIONS)) {
+        menu_open = !menu_open;
+        if (menu_open) {
+            draw_menu();
+        } else {
+            set_pvar(SPVAR_1, turbo_on);
+            set_pvar(SPVAR_2, speed);
+            set_pvar(SPVAR_3, dz);
+            draw_status();
+        }
+    }
+
+    if (menu_open) {
+        run_menu();
+        combo_stop(turbo);
+    } else {
+        half_ms = 500 / speed; // speed presses per second: half the period down, half up
+        if (turbo_on && get_ival(PS4_CROSS)) {
+            combo_run(turbo);
+        } else {
+            combo_stop(turbo);
+        }
+    }
+
+    fix_stick(PS4_LX, PS4_LY);
+    fix_stick(PS4_RX, PS4_RY);
+}
+
+combo turbo {
+    set_val(PS4_CROSS, 100);
+    wait(half_ms);
+    set_val(PS4_CROSS, 0);
+    wait(half_ms);
+}
+
+function run_menu() {
+    if (event_press(PS4_DOWN)) { item = (item + 1) % ITEMS; draw_menu(); }
+    if (event_press(PS4_UP)) { item = (item + ITEMS - 1) % ITEMS; draw_menu(); }
+    if (event_press(PS4_RIGHT)) { change(1); draw_menu(); }
+    if (event_press(PS4_LEFT)) { change(-1); draw_menu(); }
+
+    // keep menu navigation away from the game
+    set_val(PS4_UP, 0);
+    set_val(PS4_DOWN, 0);
+    set_val(PS4_LEFT, 0);
+    set_val(PS4_RIGHT, 0);
+    set_val(PS4_OPTIONS, 0);
+}
+
+function change(step) {
+    if (item == 0) turbo_on = !turbo_on;
+    if (item == 1) speed = clamp(speed + step, 2, 20);
+    if (item == 2) dz = clamp(dz + step, 0, 30);
+}
+
+function draw_menu() {
+    cls_oled(OLED_BLACK);
+    print(4, 1, OLED_FONT_SMALL, OLED_WHITE, TITLE[0]);
+    line_oled(0, 12, 127, 12, 1, OLED_WHITE);
+    for (i = 0; i < ITEMS; i++) {
+        y = 15 + i * ROW_H;
+        color = OLED_WHITE;
+        if (i == item) {
+            rect_oled(0, y - 1, 128, ROW_H - 1, TRUE, OLED_WHITE);
+            color = OLED_BLACK;
+        }
+        print(4, y, OLED_FONT_SMALL, color, LABELS[i]);
+        if (i == 0) {
+            if (turbo_on) print(96, y, OLED_FONT_SMALL, color, ON_TEXT[0]);
+            else print(96, y, OLED_FONT_SMALL, color, OFF_TEXT[0]);
+        }
+        if (i == 1) draw_number(96, y, speed, color);
+        if (i == 2) draw_number(96, y, dz, color);
+    }
+    print(4, 55, OLED_FONT_SMALL, OLED_WHITE, HINT[0]);
+}
+
+function draw_status() {
+    cls_oled(OLED_BLACK);
+    if (turbo_on) print(4, 27, OLED_FONT_MEDIUM, OLED_WHITE, STATUS_ON[0]);
+    else print(4, 27, OLED_FONT_MEDIUM, OLED_WHITE, STATUS_OFF[0]);
+}
+
+// Writes the digits of n into the OLED text buffer and draws them.
+function draw_number(x, top, n, ink) {
+    value = n;
+    divisor = 10000;
+    started = 0;
+    len = 0;
+    while (divisor > 0) {
+        digit = (value / divisor) % 10;
+        if (digit || started || divisor == 1) {
+            len++;
+            putc_oled(len, 48 + digit);
+            started = 1;
+        }
+        divisor = divisor / 10;
+    }
+    puts_oled(x, top, OLED_FONT_SMALL, len, ink);
+}
+
+// Radial deadzone with rescale, as in anti_drift.gpc.
+function fix_stick(id_x, id_y) {
+    sx = get_ival(id_x);
+    sy = get_ival(id_y);
+    mag = isqrt(sx * sx + sy * sy);
+    if (mag <= dz) {
+        set_val(id_x, 0);
+        set_val(id_y, 0);
+        return;
+    }
+    scaled = (mag - dz) * 100 / (100 - dz);
+    set_val(id_x, clamp(sx * scaled / mag, -100, 100));
+    set_val(id_y, clamp(sy * scaled / mag, -100, 100));
+}

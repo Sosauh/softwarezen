@@ -42,6 +42,11 @@ public static class Identifiers
             ["ANALOG_GHOSTX"] = 58, ["ANALOG_GHOSTY"] = 59,
             ["OLED_BLACK"] = 0, ["OLED_WHITE"] = 1,
             ["OLED_FONT_SMALL"] = 0, ["OLED_FONT_MEDIUM"] = 1, ["OLED_FONT_LARGE"] = 2,
+            ["OLED_WIDTH"] = Oled.Width, ["OLED_HEIGHT"] = Oled.Height,
+            // LARGE is from the guide; SMALL and MEDIUM sizes are UNVERIFIED
+            ["OLED_FONT_SMALL_WIDTH"] = Oled.Fonts[0].w, ["OLED_FONT_SMALL_HEIGHT"] = Oled.Fonts[0].h,
+            ["OLED_FONT_MEDIUM_WIDTH"] = Oled.Fonts[1].w, ["OLED_FONT_MEDIUM_HEIGHT"] = Oled.Fonts[1].h,
+            ["OLED_FONT_LARGE_WIDTH"] = Oled.Fonts[2].w, ["OLED_FONT_LARGE_HEIGHT"] = Oled.Fonts[2].h,
             // UNVERIFIED values below
             ["BUTTON_MIN"] = 0, ["BUTTON_MAX"] = TRACE_1 + TraceCount - 1, ["BUTTON_MAX_EXTENDED"] = SlotCount - 1,
             ["VALUE_MIN"] = -100, ["VALUE_MAX"] = 100,

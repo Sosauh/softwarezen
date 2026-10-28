@@ -1,0 +1,67 @@
+// Probe 0: the numbers behind the built-in names, shown on the Zen's OLED.
+// The guide never publishes these, and scripts that use raw numbers depend on them.
+//
+// Run it on the Zen and photograph the screen. Press CROSS for the next page (3 pages).
+// If it does not compile, send the error: it means one of these names doesn't exist.
+
+const string LABELS[] = {
+    "CRS", "CIR", "SQR", "TRI", "R1", "R2", "L2", "RX", "RY", "LX", "LY", "UP",
+    "PS", "SHR", "OPT", "TCH", "ACX", "GYX", "TR1", "TR6", "RMA", "RMB", "RRT", "RLT",
+    "NOU", "DZC", "TMX", "BMX", "BXE", "PP4", "PP5", "PX1", "VMN", "VMX", "LD1", "SP1"
+};
+
+const int32 VALUES[] = {
+    PS4_CROSS, PS4_CIRCLE, PS4_SQUARE, PS4_TRIANGLE, PS4_R1, PS4_R2, PS4_L2, PS4_RX, PS4_RY, PS4_LX, PS4_LY, PS4_UP,
+    PS4_PS, PS4_SHARE, PS4_OPTIONS, PS4_TOUCH, PS4_ACCX, PS4_GYROX, TRACE_1, TRACE_6, RUMBLE_A, RUMBLE_B, RUMBLE_RT, RUMBLE_LT,
+    NOT_USE, DZ_CIRCLE, TIME_MAX, BUTTON_MAX, BUTTON_MAX_EXTENDED, PIO_PS4, PIO_PS5, PIO_XB1, VALUE_MIN, VALUE_MAX, LED_1, SPVAR_1
+};
+
+define PER_PAGE = 12;
+define PAGES = 3;
+
+int page, i, k, x, y;
+int value, divisor, digit, started, len;
+
+init {
+    draw_page();
+}
+
+main {
+    if (event_press(PS4_CROSS)) {
+        page = (page + 1) % PAGES;
+        draw_page();
+    }
+}
+
+function draw_page() {
+    cls_oled(OLED_BLACK);
+    for (i = 0; i < PER_PAGE; i++) {
+        k = page * PER_PAGE + i;
+        x = (i / 6) * 64;
+        y = (i % 6) * 10 + 2;
+        print(x, y, OLED_FONT_SMALL, OLED_WHITE, LABELS[k]);
+        draw_number(x + 28, y, VALUES[k]);
+    }
+}
+
+function draw_number(at_x, at_y, n) {
+    len = 0;
+    value = n;
+    if (value < 0) {
+        len++;
+        putc_oled(len, 45); // '-'
+        value = -value;
+    }
+    divisor = 10000;
+    started = 0;
+    while (divisor > 0) {
+        digit = (value / divisor) % 10;
+        if (digit || started || divisor == 1) {
+            len++;
+            putc_oled(len, 48 + digit);
+            started = 1;
+        }
+        divisor = divisor / 10;
+    }
+    puts_oled(at_x, at_y, OLED_FONT_SMALL, len, OLED_WHITE);
+}
